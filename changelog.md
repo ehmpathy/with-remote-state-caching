@@ -1,5 +1,12 @@
 # Changelog
 
+### [1.0.1](https://www.github.com/ehmpathy/with-remote-state-caching/compare/v1.0.0...v1.0.1) (2022-11-24)
+
+
+### Bug Fixes
+
+* **exports:** actually export the utilities ([0c2eb89](https://www.github.com/ehmpathy/with-remote-state-caching/commit/0c2eb8966cf96adc98a03b4a819a52075b531751))
+
 ## 1.0.0 (2022-11-24)
 
 
