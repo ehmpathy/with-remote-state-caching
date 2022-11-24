@@ -1,3 +1,6 @@
+import { WithSimpleCachingOptions } from 'with-simple-caching';
+import { MutationWithRemoteStateRegistration } from './createRemoteStateCachingContext';
+
 /**
  * an invalidation trigger for the cache of a remote-state-query
  * - allows the user to specify which keys become invalid when a specific mutation fires
@@ -11,7 +14,7 @@ export interface RemoteStateQueryInvalidationTrigger<Q extends (...args: any) =>
    * - e.g., `createCampaign.name === 'createCampaign'` for `const createCampaign = () => {...}`
    * - why? this will ensure if you rename the function, the referenced name will automatically get updated
    */
-  mutation: M;
+  mutation: MutationWithRemoteStateRegistration<M>;
 
   /**
    * a method which specifies which cache keys for the query were affected by this triggered mutation
@@ -53,11 +56,8 @@ export interface RemoteStateQueryUpdateTrigger<Q extends (...args: any) => any, 
     from: {
       /**
        * the current cached output of the query
-       *
-       * note
-       * - this will be undefined if there is no valid cached state for the query at the time
        */
-      cachedQueryOutput: ReturnType<Q> | undefined;
+      cachedQueryOutput: ReturnType<Q>;
     };
     /**
      * the mutation this update was triggered with
@@ -90,7 +90,7 @@ export interface WithRemoteStateQueryCachingOptions<Q extends (...args: any) => 
    * - invalidate `getAllCampaigns` when `createCampaign` is fired, but only for the account the new campaign was created in
    * - invalidate `getCampaign` when `updateCampaign` is fired, but only for the campaign that was updated
    */
-  invalidatedBy?: RemoteStateQueryInvalidationTrigger<Q, any>[];
+  invalidatedBy: RemoteStateQueryInvalidationTrigger<Q, any>[];
 
   /**
    * specifies that we must, and how to, update the cached response of the query, for certain inputs, when one of these triggers fires, signaled that the remote state has changed
@@ -99,5 +99,14 @@ export interface WithRemoteStateQueryCachingOptions<Q extends (...args: any) => 
    * - update `getAllCampaigns` when `createCampaign` is fired by adding the campaign, but only for the account the new campaign was created in
    * - invalidate `getCampaign` when `updateCampaign` is fired by using the new state, but only for the campaign that was updated
    */
-  updatedBy?: RemoteStateQueryUpdateTrigger<Q, any>[];
+  updatedBy: RemoteStateQueryUpdateTrigger<Q, any>[];
+
+  /**
+   * the options passed to WithSimpleCaching for deserialization
+   *
+   * note
+   * - this is just a reference to the function the user defined
+   * - we use this to be able to deserialize the value before letting the user update it in the updatedBy trigger
+   */
+  deserialize: Required<WithSimpleCachingOptions<Q, any>>['deserialize'];
 }

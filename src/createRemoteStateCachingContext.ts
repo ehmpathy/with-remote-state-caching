@@ -1,4 +1,4 @@
-import { isAFunction } from 'type-fns';
+import { isAFunction, PickOne } from 'type-fns';
 import {
   WithSimpleCachingOptions,
   LogicWithExtendableCaching,
@@ -7,10 +7,11 @@ import {
   withExtendableCaching,
   SimpleCache,
   SimpleCacheResolutionMethod,
+  defaultValueDeserializationMethod,
 } from 'with-simple-caching';
 import { createCache } from 'simple-in-memory-cache';
 import { RemoteStateCacheContext, RemoteStateCacheContextQueryRegistration } from './RemoteStateCacheContext';
-import { WithRemoteStateQueryCachingOptions } from './RemoteStateQueryCachingOptions';
+import { RemoteStateQueryInvalidationTrigger, RemoteStateQueryUpdateTrigger } from './RemoteStateQueryCachingOptions';
 import { BadRequestError } from './errors/BadRequestError';
 
 interface WithRemoteStateCachingOptions {
@@ -74,6 +75,54 @@ export const extractNameFromRegistrationInputs = ({
 };
 
 /**
+ * a method which makes it convinient and safe to add cache triggers to queries
+ *
+ * relevance
+ * - triggers can not be defined through wrapper options with full type information, as typescript is not able to infer both the query type and the mutation type at the same time
+ * - this method gives us the type information both the query and mutation, making it a lot more convinient to define
+ */
+export type QueryWithRemoteStateCachingAddTriggerMethod<Q extends (...args: any[]) => any> = <M extends (...args: any[]) => any>(
+  args: PickOne<{
+    invalidatedBy: RemoteStateQueryInvalidationTrigger<Q, M>;
+    updatedBy: RemoteStateQueryUpdateTrigger<Q, M>;
+  }>,
+) => void;
+
+/**
+ * the shape of a query extended with remote state caching
+ */
+export interface QueryWithRemoteStateCaching<L extends (...args: any) => any, CV extends any> extends LogicWithExtendableCaching<L, CV> {
+  /**
+   * the registered name of this query
+   */
+  name: string;
+
+  /**
+   * a method which makes it easy to add cache triggers to queries
+   *
+   * relevance
+   * - triggers can not be defined through wrapper options, as typescript is not able to infer both the query type and the mutation type at the same time
+   * - this method gives us both, by leveraging the factory pattern
+   */
+  addTrigger: QueryWithRemoteStateCachingAddTriggerMethod<L>;
+}
+
+/**
+ * the shape of a query extended with remote state registration
+ */
+export interface MutationWithRemoteStateRegistration<L extends (...args: any) => any> {
+  /**
+   * the registered name of this query
+   */
+  name: string;
+
+  /**
+   * a method which executes the mutation, with all remote state triggers invoked
+   */
+  execute: L;
+}
+
+/**
  * this method sets up remote0state caching for an application
  * - instantiates a remote-state caching context to register all queries and mutations to
  * - creates the wrapper functions used to leverage the cache within the remote-state caching context
@@ -126,8 +175,8 @@ export const createRemoteStateCachingContext = <
    */
   const withRemoteStateQueryCaching = <L extends (...args: any[]) => any, CV extends any = ReturnType<L>>(
     logic: L,
-    options: Omit<WithSimpleCachingOptions<L, CV>, 'cache'> & WithRemoteStateQueryCachingOptions<L> & WithRemoteStateCachingOptions,
-  ): LogicWithExtendableCaching<L, CV> => {
+    options: Omit<WithSimpleCachingOptions<L, CV>, 'cache'> & WithRemoteStateCachingOptions,
+  ): QueryWithRemoteStateCaching<L, CV> => {
     // create an in memory cache to store the valid keys for this query
     const keys = createCache<string[]>();
     const getKeys = () => keys.get('keys') ?? [];
@@ -158,15 +207,27 @@ export const createRemoteStateCachingContext = <
       query: logicExtendedWithCaching,
       keys: { get: getKeys },
       options: {
-        // note: we pick out only the ones we care about specifically, because options could actually be implemented with a superset object, and typically is - so this prevents having a massive recursive structure in the context
-        invalidatedBy: options.invalidatedBy,
-        updatedBy: options.updatedBy,
+        invalidatedBy: [],
+        updatedBy: [],
+        deserialize: { value: options.deserialize?.value ?? defaultValueDeserializationMethod },
       },
     };
     registerQueryToRemoteStateContext({ registration });
 
+    // define a method the user can use to add triggers (since defining them on inputs does not give good type safety)
+    const addTrigger: QueryWithRemoteStateCachingAddTriggerMethod<L> = <M extends (...args: any[]) => any>({
+      invalidatedBy,
+      updatedBy,
+    }: PickOne<{
+      invalidatedBy: RemoteStateQueryInvalidationTrigger<L, M>;
+      updatedBy: RemoteStateQueryUpdateTrigger<L, M>;
+    }>) => {
+      if (invalidatedBy) registration.options.invalidatedBy.push(invalidatedBy);
+      if (updatedBy) registration.options.updatedBy.push(updatedBy);
+    };
+
     // and return the extended logic
-    return logicExtendedWithCaching;
+    return { ...logicExtendedWithCaching, addTrigger, name: registration.name };
   };
 
   /**
@@ -193,7 +254,9 @@ export const createRemoteStateCachingContext = <
         if (!registration.options.invalidatedBy) return;
 
         // if invalidated by wasn't defined for this mutation, do nothing
-        const invalidatedByThisMutationDefinition = registration.options.invalidatedBy.find((definition) => definition.mutation === mutationName);
+        const invalidatedByThisMutationDefinition = registration.options.invalidatedBy.find(
+          (definition) => definition.mutation.name === mutationName,
+        );
         if (!invalidatedByThisMutationDefinition) return;
 
         // otherwise, define what to invalidate
@@ -216,7 +279,7 @@ export const createRemoteStateCachingContext = <
         if (!registration.options.updatedBy) return;
 
         // if updated by wasn't defined for this mutation, do nothing
-        const updatedByThisMutationDefinition = registration.options.updatedBy.find((definition) => definition.mutation === mutationName);
+        const updatedByThisMutationDefinition = registration.options.updatedBy.find((definition) => definition.mutation.name === mutationName);
         if (!updatedByThisMutationDefinition) return;
 
         // otherwise, define what to update
@@ -228,13 +291,17 @@ export const createRemoteStateCachingContext = <
 
         // define the function that will be used to update the cache with
         const toValue: (args: { cachedValue: CV | undefined }) => LO = ({ cachedValue }) =>
-          updatedByThisMutationDefinition.update({
-            from: { cachedQueryOutput: cachedValue },
-            with: {
-              mutationInput,
-              mutationOutput,
-            },
-          });
+          cachedValue // only run the update if the cache is still valid for this key; otherwise, it shouldn't have been called; i.e., sheild the trigger function from invalidated, undefined, cache values
+            ? updatedByThisMutationDefinition.update({
+                from: {
+                  cachedQueryOutput: Promise.resolve(cachedValue).then(registration.options.deserialize.value), // ensure to wrap it in a promise, so that even if a sync cache is used, the result is consistent w/ output type
+                },
+                with: {
+                  mutationInput,
+                  mutationOutput,
+                },
+              })
+            : undefined;
 
         // execute the updates
         if (affected.keys) await Promise.all(affected.keys.map((forKey) => registration.query.update({ forKey, cache: mutationCache, toValue })));
@@ -252,7 +319,7 @@ export const createRemoteStateCachingContext = <
   const withRemoteStateMutationRegistration = <L extends (...args: any[]) => any, CV extends any>(
     logic: L,
     options: WithRemoteStateCachingOptions,
-  ): { execute: L } => {
+  ): MutationWithRemoteStateRegistration<L> => {
     // define the mutation name
     const mutationName = extractNameFromRegistrationInputs({ operation: RemoteStateOperation.QUERY, logic, options });
 
@@ -264,7 +331,7 @@ export const createRemoteStateCachingContext = <
     }) as L;
 
     // return the extended logic
-    return { execute };
+    return { execute, name: mutationName };
   };
 
   /**

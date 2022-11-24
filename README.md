@@ -75,7 +75,7 @@ import { createCache } from 'simple-localstorage-cache';
 
 // creates a shared context that all registered queries and mutations will be able to interact within
 const { withRemoteStateQueryCaching, withRemoteStateMutationRegistration } = createRemoteStateCachingContext({
-  cache: createCache({ namespace: 'recipies-api' }), // creates a localstorage cache, namespaced by this key, to use for all operations
+  cache: createCache({ namespace: 'recipes-api' }), // creates a localstorage cache, namespaced by this key, to use for all operations
 })
 ```
 
@@ -142,7 +142,7 @@ await queryGetRecipes.update({
 
 ### Automatically invalidate the cached response of a query
 
-Given that we have a `mutation` in our app which updates the recipies in the remote-state, it's natural to wonder, can we just use that as a trigger for invalidating our cache? For example, can we trigger invalidating our `getRecipes` query whenever a new recipe is saved with the `saveRecipe` mutation?
+Given that we have a `mutation` in our app which updates the recipes in the remote-state, it's natural to wonder, can we just use that as a trigger for invalidating our cache? For example, can we trigger invalidating our `getRecipes` query whenever a new recipe is saved with the `saveRecipe` mutation?
 
 Oh boy can we 😄
 
@@ -154,27 +154,19 @@ First, we must first register the `mutation` with our remote-state caching syste
 const mutationSaveRecipe = withRemoteStateMutationRegistration(saveRecipe);
 ```
 
-Finally, you can define these invalidation triggers when wrapping your query withRemoteStateQueryCaching with the `invalidatedBy` option, like so:
+Finally, you can add this `invalidatedBy` trigger by calling the `addTrigger` method exposed by the wrapped query, like so:
 ```ts
-// add remote-state caching, with automatic invalidation, to the query `getRecipesFromApi`
-const queryGetRecipes = withRemoteStateQueryCaching(
-  getRecipes,
-  {
-    invalidatedBy: [
-      {
-        mutation: mutationSaveRecipe,
-        affects: ({ mutationInput, cachedQueryKeys }) => {
-          return {
-            // invalidate all of the keys which included the new recipe's title (new recipe being defined in the mutationInput)
-            keys: cachedQueryKeys.filter((cachedQueryKey) =>
-              cachedQueryKey.includes(mutationInput[0].title),
-            ),
-          };
-        },
-      },
-    ]
-  }
-);
+// add a trigger which updates the cache when the `mutationSaveRecipe` mutation is called
+queryGetRecipes.addTrigger({
+  invalidatedBy: {
+    mutation: mutationSaveRecipe,
+    affects: ({ mutationInput, mutationOutput, cachedQueryKeys }) => ({
+      keys: cachedQueryKeys.filter((cachedQueryKey) =>
+        cachedQueryKey.includes(mutationInput[0].title), // invalidate all of the keys which included the new recipe's title (new recipe being defined in the mutationInput)
+      ),
+    }),
+  },
+});
 ```
 
 Easy peasy.
@@ -187,32 +179,24 @@ Spot on 🤓
 
 We can easily automatically update the cached value of certain keys of a query triggered by a mutation, preventing the additional api call that invalidation would have produced 🚀
 
-You can define these update triggers when wrapping your query withRemoteStateQueryCaching with the `updatedBy` option, like so:
+You can define these `updatedBy` triggers, just like the `invalidateBy` triggers, with the `addTrigger` method exposed on the wrapped query.
 ```ts
-// add remote-state caching, with automatic updates, to the query `getRecipesFromApi`
-const queryGetRecipes = withRemoteStateQueryCaching(
-  getRecipes,
-  {
-    updatedBy: [
-      {
-        mutation: mutationSaveRecipe,
-        affects: ({ mutationInput, mutationOutput, cachedQueryKeys }) => {
-          return {
-            // update all of the cached values from keys which included the new recipe's title (new recipe being defined in the mutationInput)
-            keys: cachedQueryKeys.filter((cachedQueryKey) =>
-              cachedQueryKey.includes(mutationInput[0].title),
-            ),
-          };
-        },
-        update: ({ from: { cachedQueryOutput }, with: { mutationInput, mutationOutput } }) => {
-          const cachedRecipies = cachedQueryOutput; // rename this for clarity
-          const newRecipe = mutationInput[1];
-          return [newRecipe, ...cachedRecipies] // update the cache to stick the new recipe at the beginning of the list
-        }
-      },
-    ]
-  }
-);
+// add a trigger which updates the cache when the `mutationSaveRecipe` mutation is called
+queryGetRecipes.addTrigger({
+  updatedBy: {
+    mutation: mutationSaveRecipe,
+    affects: ({ mutationInput, mutationOutput, cachedQueryKeys }) => ({
+      keys: cachedQueryKeys.filter((cachedQueryKey) =>
+        cachedQueryKey.includes(mutationInput[0].title), // update all of the cached values from keys which included the new recipe's title (new recipe being defined in the mutationInput)
+      ),
+    }),
+    update: ({ from: { cachedQueryOutput }, with: { mutationInput, mutationOutput } }) => {
+      const cachedRecipes = cachedQueryOutput; // rename this for clarity
+      const newRecipe = mutationInput[1];
+      return [newRecipe, ...cachedRecipes] // update the cache to stick the new recipe at the beginning of the list
+    }
+  },
+})
 ```
 
 
@@ -222,3 +206,13 @@ const queryGetRecipes = withRemoteStateQueryCaching(
 - mutation optimistic-response caching, resolution, and triggered updates
 - remote-state update event subscriptions
 
+
+# FAQ
+
+### can i define triggers through the wrapper options?
+
+We've disabled that feature, in favor of the `addTrigger` method, to standardize on one way of adding triggers.
+
+The reason we've standardized on `addTrigger` instead of through the wrapper config is primarily because typescript is not able to infer the type of both the `query` and the `mutation` involved in the operation. Meaning, when trying to define these triggers through the wrapper config, you wont have type saftey or autocomplete on the `mutationInput` or `mutationOutput` arguments, which is a pretty big problem.
+
+The `addTrigger` method does not have this issue, since it operates on one `mutation` + `query` combination at a time. Further, it can be collocated with the mutation that you want to trigger the query update from, allowing for greater flexibility in how you want to structure your code base.
