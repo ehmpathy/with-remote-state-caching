@@ -6,6 +6,7 @@ import {
   WithSimpleCachingOnSetTrigger,
   withExtendableCaching,
   SimpleCache,
+  SimpleCacheResolutionMethod,
 } from 'with-simple-caching';
 import { createCache } from 'simple-in-memory-cache';
 import { RemoteStateCacheContext, RemoteStateCacheContextQueryRegistration } from './RemoteStateCacheContext';
@@ -78,7 +79,19 @@ export const extractNameFromRegistrationInputs = ({
  * - creates the wrapper functions used to leverage the cache within the remote-state caching context
  * - manages tracking and triggering interactions between queries and mutations (invalidations, updates, etc)
  */
-export const createRemoteStateCachingContext = () => {
+export const createRemoteStateCachingContext = <
+  /**
+   * specifies the shared types that can be set to the cache
+   *
+   * note:
+   * - if it is too restrictive, you can define a serialize + deserialize method for your function's output w/ options
+   */
+  SCV extends any // SCV = shared cache value
+>({
+  cache,
+}: {
+  cache: SimpleCache<SCV> | SimpleCacheResolutionMethod<any, SCV>;
+}) => {
   /**
    * the context we'll be using for the application
    */
@@ -92,7 +105,7 @@ export const createRemoteStateCachingContext = () => {
   /**
    * a function which is able to register a query to the context
    */
-  const registerQueryToRemoteStateContext = ({ registration }: { registration: RemoteStateCacheContextQueryRegistration<any, any, any> }) => {
+  const registerQueryToRemoteStateContext = ({ registration }: { registration: RemoteStateCacheContextQueryRegistration<any, any> }) => {
     // sanity check that a query with that name is not already registered
     if (registration.name in context.registered.queries)
       throw new BadRequestError('a query with this name was already registered to the context. these names should be unique', {
@@ -111,17 +124,17 @@ export const createRemoteStateCachingContext = () => {
    * - automatically invalidating or updating the cached response for a query, triggered by mutations
    * - manually invalidating or updating the cached response for a query
    */
-  const withRemoteStateQueryCaching = <LR extends Promise<any>, CR extends any, L extends (...args: any[]) => LR>(
+  const withRemoteStateQueryCaching = <L extends (...args: any[]) => any, CV extends any = ReturnType<L>>(
     logic: L,
-    options: WithSimpleCachingOptions<LR, CR, L> & WithRemoteStateQueryCachingOptions<L> & WithRemoteStateCachingOptions,
-  ): LogicWithExtendableCaching<LR, CR, L> => {
+    options: Omit<WithSimpleCachingOptions<L, CV>, 'cache'> & WithRemoteStateQueryCachingOptions<L> & WithRemoteStateCachingOptions,
+  ): LogicWithExtendableCaching<L, CV> => {
     // create an in memory cache to store the valid keys for this query
     const keys = createCache<string[]>();
     const getKeys = () => keys.get('keys') ?? [];
     const setKeys = (value: string[]) => keys.set('keys', value);
 
     // define the hook used to manage the valid keys tracked for this query's cache
-    const onSetHook: SimpleCacheOnSetHook<LR, CR, L> = ({ trigger, forKey }) => {
+    const onSetHook: SimpleCacheOnSetHook<L, CV> = ({ trigger, forKey }) => {
       // determine if the key already exists in the cache
       const keyIsAlreadyMarkedAsValid = getKeys().some((key) => key === forKey);
 
@@ -135,11 +148,12 @@ export const createRemoteStateCachingContext = () => {
     // extend the logic with caching
     const logicExtendedWithCaching = withExtendableCaching(logic, {
       ...options,
+      cache: cache as WithSimpleCachingOptions<L, CV>['cache'], // we've asserted that CV is a subset of SCV, so this in reality will work; // TODO: determine why typescript is not happy here
       hook: { onSet: onSetHook },
     });
 
     // register this query
-    const registration: RemoteStateCacheContextQueryRegistration<LR, CR, L> = {
+    const registration: RemoteStateCacheContextQueryRegistration<L, CV> = {
       name: extractNameFromRegistrationInputs({ operation: RemoteStateOperation.QUERY, logic, options }),
       query: logicExtendedWithCaching,
       keys: { get: getKeys },
@@ -158,18 +172,19 @@ export const createRemoteStateCachingContext = () => {
   /**
    * define a method which is able to kick off all registered query invalidations and query updates, on the execution of a mutation
    */
-  const onMutationOutput = async <LR extends any, CR extends any, M extends (...args: any) => any>({
+  const onMutationOutput = async <LO extends any, CV extends any, M extends (...args: any) => any>({
     mutationName,
     mutationInput,
     mutationOutput,
-    cache,
   }: {
     mutationName: string;
     mutationInput: Parameters<M>;
     mutationOutput: ReturnType<M>;
-    cache: SimpleCache<CR>;
   }) => {
     const registrations = Object.values(context.registered.queries);
+
+    // define the cache from mutation input, if needed
+    const mutationCache = isAFunction(cache) ? cache({ fromInput: mutationInput }) : cache;
 
     // for each registered query, handle invalidation if needed
     await Promise.all(
@@ -185,11 +200,11 @@ export const createRemoteStateCachingContext = () => {
         const invalidate = invalidatedByThisMutationDefinition.affects({
           mutationInput,
           mutationOutput,
-          cachedQueryStrings: registration.keys.get(),
+          cachedQueryKeys: registration.keys.get(),
         });
 
         // execute the invalidations
-        if (invalidate.keys) await Promise.all(invalidate.keys.map((forKey) => registration.query.invalidate({ forKey, cache })));
+        if (invalidate.keys) await Promise.all(invalidate.keys.map((forKey) => registration.query.invalidate({ forKey, cache: mutationCache })));
         if (invalidate.inputs) await Promise.all(invalidate.inputs.map((forInput) => registration.query.invalidate({ forInput })));
       }),
     );
@@ -208,11 +223,11 @@ export const createRemoteStateCachingContext = () => {
         const affected = updatedByThisMutationDefinition.affects({
           mutationInput,
           mutationOutput,
-          cachedQueryStrings: registration.keys.get(),
+          cachedQueryKeys: registration.keys.get(),
         });
 
         // define the function that will be used to update the cache with
-        const toValue: (args: { cachedValue: CR | undefined }) => LR = ({ cachedValue }) =>
+        const toValue: (args: { cachedValue: CV | undefined }) => LO = ({ cachedValue }) =>
           updatedByThisMutationDefinition.update({
             from: { cachedQueryOutput: cachedValue },
             with: {
@@ -222,7 +237,7 @@ export const createRemoteStateCachingContext = () => {
           });
 
         // execute the updates
-        if (affected.keys) await Promise.all(affected.keys.map((forKey) => registration.query.update({ forKey, cache, toValue })));
+        if (affected.keys) await Promise.all(affected.keys.map((forKey) => registration.query.update({ forKey, cache: mutationCache, toValue })));
         if (affected.inputs) await Promise.all(affected.inputs.map((forInput) => registration.query.update({ forInput, toValue })));
       }),
     );
@@ -234,7 +249,7 @@ export const createRemoteStateCachingContext = () => {
    * relevance
    * - this enables the mutation to trigger invalidation and updates of queries
    */
-  const withRemoteStateMutationRegistration = <LR extends Promise<any>, CR extends any, L extends (...args: any[]) => LR>(
+  const withRemoteStateMutationRegistration = <L extends (...args: any[]) => any, CV extends any>(
     logic: L,
     options: WithRemoteStateCachingOptions,
   ): { execute: L } => {
@@ -244,8 +259,7 @@ export const createRemoteStateCachingContext = () => {
     // define the execute function, with triggers onMutationOutput
     const execute: L = (async (...args: Parameters<L>): Promise<ReturnType<L>> => {
       const result = (await logic(...args)) as ReturnType<L>;
-      const cache = isAFunction(options.cache) ? options.cache({ fromInput: args }) : options.cache; // TODO: store a reference to the queries cache on the query registration, to ensure its the same cache. this is easier for now, but not as reliable (since mutation could use a different cache)
-      await onMutationOutput({ mutationName, mutationInput: args, mutationOutput: result, cache });
+      await onMutationOutput({ mutationName, mutationInput: args, mutationOutput: result });
       return result;
     }) as L;
 

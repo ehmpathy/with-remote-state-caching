@@ -3,7 +3,7 @@
 ![ci_on_commit](https://github.com/ehmpathy/with-remote-state-caching/workflows/ci_on_commit/badge.svg)
 ![deploy_on_tag](https://github.com/ehmpathy/with-remote-state-caching/workflows/deploy_on_tag/badge.svg)
 
-A wrapper that makes it simple to add powerful caching of remote-state, to maximize performance without loosing accuracy.
+Easily add powerful, declarative, and intuitive caching over remote-state resources to maximize performance without loosing accuracy.
 
 Notable features:
 
@@ -65,12 +65,7 @@ const saveRecipe = ({ recipe }: { recipe: Recipe }): Promise<Required<Recipe>> =
 
 Before being able to use remote-state caching, we'll need to set up a remote-state caching context within which the queries and mutations will be registered
 
-This context,
-- tracks all of the queries and mutations registered with the wrapper functions it exposes
-- triggers all interactions specified by the query and mutation options you defined
-- provides additional data useful in defining the interactions between queries and mutations (e.g., currently cached keys)
-
-In short, this is the glue that provides the additional information, i.e., context, needed for the remote-state caching to produce the powerful automations which make it so useful.
+This is the glue that provides the additional information, i.e., the context, needed for the remote-state caching to power the internal cache interactions which make it so useful.
 
 Let's get started
 
@@ -79,8 +74,19 @@ import { setupRemoteStateCaching } from 'with-remote-state-caching';
 import { createCache } from 'simple-localstorage-cache';
 
 // creates a shared context that all registered queries and mutations will be able to interact within
-const { withRemoteStateQueryCaching, withRemoteStateMutationRegistration } = createRemoteStateCachingContext()
+const { withRemoteStateQueryCaching, withRemoteStateMutationRegistration } = createRemoteStateCachingContext({
+  cache: createCache({ namespace: 'recipies-api' }), // creates a localstorage cache, namespaced by this key, to use for all operations
+})
 ```
+
+
+note, in this particular example we're using [simple-localstorage-cache](https://github.com/ehmpathy/simple-localstorage-cache), but you can use any cache which works with [with-simple-caching](https://github.com/ehmpathy/with-simple-caching), for example
+- [simple-on-disk-caching](https://github.com/ehmpathy/simple-on-disk-cache) for s3 and mounted persistance
+- [simple-dynamodb-caching](https://github.com/ehmpathy/simple-dynamodb-cache) for dynamodb persistance
+- [simple-localstorage-caching](https://github.com/ehmpathy/simple-localstorage-cache) for browser localstorage persistance
+- [simple-in-memory-caching](https://github.com/ehmpathy/simple-in-memory-cache) for in-memory persistance
+- etc
+
 
 ### Cache the response of a query
 
@@ -91,7 +97,7 @@ import { createCache } from 'simple-localstorage-cache';
 import { withRemoteStateQueryCaching } from 'with-remote-state-caching';
 
 // add remote-state caching to the query `getRecipesFromApi`
-const queryGetRecipes = withRemoteStateQueryCaching(getRecipes, { cache: createCache() });
+const queryGetRecipes = withRemoteStateQueryCaching(getRecipes) });
 
 // now, when you execute that query, the result will be cached
 await queryGetRecipes.execute({ searchFor: 'chocolate' }); // calls api
@@ -99,13 +105,6 @@ await queryGetRecipes.execute({ searchFor: 'chocolate' }); // does not call the 
 await queryGetRecipes.execute({ searchFor: 'bananas' }); // calls api
 await queryGetRecipes.execute({ searchFor: 'bananas' }); // does not call the api, fetches from cache
 ```
-
-note, in this particular example we're using [simple-localstorage-cache](https://github.com/ehmpathy/simple-localstorage-cache), but you can use any cache which works with [with-simple-caching](https://github.com/ehmpathy/with-simple-caching), for example
-- [simple-on-disk-caching](https://github.com/ehmpathy/simple-on-disk-cache) for s3 and mounted persistance
-- [simple-dynamodb-caching](https://github.com/ehmpathy/simple-dynamodb-cache) for dynamodb persistance
-- [simple-localstorage-caching](https://github.com/ehmpathy/simple-localstorage-cache) for browser localstorage persistance
-- [simple-in-memory-caching](https://github.com/ehmpathy/simple-in-memory-cache) for in-memory persistance
-- etc
 
 
 ### Manually invalidate the cached response of a query
@@ -161,7 +160,6 @@ Finally, you can define these invalidation triggers when wrapping your query wit
 const queryGetRecipes = withRemoteStateQueryCaching(
   getRecipes,
   {
-    cache: createCache(),
     invalidatedBy: [
       {
         mutation: mutationSaveRecipe,
@@ -195,7 +193,6 @@ You can define these update triggers when wrapping your query withRemoteStateQue
 const queryGetRecipes = withRemoteStateQueryCaching(
   getRecipes,
   {
-    cache: createCache(),
     updatedBy: [
       {
         mutation: mutationSaveRecipe,

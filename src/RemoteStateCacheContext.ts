@@ -8,7 +8,7 @@ import { WithRemoteStateQueryCachingOptions } from './RemoteStateQueryCachingOpt
  * - the query itself, wrapped with extended caching, so that we can execute, invalidate, and update it
  * - the keys we've seen written to for the query, so that we can use them to let the user specify which keys to invalidate
  */
-export interface RemoteStateCacheContextQueryRegistration<LR extends any, CR extends any, L extends (...args: any[]) => any> {
+export interface RemoteStateCacheContextQueryRegistration<L extends (...args: any[]) => any, CV extends any> {
   /**
    * the name of the query
    */
@@ -17,7 +17,7 @@ export interface RemoteStateCacheContextQueryRegistration<LR extends any, CR ext
   /**
    * the query with extended caching which can be used
    */
-  query: LogicWithExtendableCaching<LR, CR, L>;
+  query: LogicWithExtendableCaching<L, CV>;
 
   /**
    * the list of keys the remote-state-cache has seen written to without invalidation
@@ -46,7 +46,7 @@ export interface RemoteStateCacheContextQueryRegistration<LR extends any, CR ext
 export interface RemoteStateCacheContext {
   registered: {
     queries: {
-      [index: string]: RemoteStateCacheContextQueryRegistration<any, any, any>; // note: we use a map here to ensure there's only one query with a given name at a time + to speed up lookups
+      [index: string]: RemoteStateCacheContextQueryRegistration<any, any>; // note: we use a map here to ensure there's only one query with a given name at a time + to speed up lookups
     };
     mutations: {
       // TODO

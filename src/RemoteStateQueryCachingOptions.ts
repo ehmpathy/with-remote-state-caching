@@ -23,7 +23,7 @@ export interface RemoteStateQueryInvalidationTrigger<Q extends (...args: any) =>
   affects: (args: {
     mutationInput: Parameters<M>;
     mutationOutput: ReturnType<M>;
-    cachedQueryStrings: string[];
+    cachedQueryKeys: string[];
   }) => {
     inputs?: Parameters<Q>[];
     keys?: string[];
