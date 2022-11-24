@@ -5,8 +5,9 @@ import { WithRemoteStateQueryCachingOptions } from './RemoteStateQueryCachingOpt
  * tracks all of the info required for managing the remote-state cache for a query
  *
  * includes
+ * - the queries name
  * - the query itself, wrapped with extended caching, so that we can execute, invalidate, and update it
- * - the keys we've seen written to for the query, so that we can use them to let the user specify which keys to invalidate
+ * - options that the query was provisioned with
  */
 export interface RemoteStateCacheContextQueryRegistration<L extends (...args: any[]) => any, CV extends any> {
   /**
@@ -18,15 +19,6 @@ export interface RemoteStateCacheContextQueryRegistration<L extends (...args: an
    * the query with extended caching which can be used
    */
   query: LogicWithExtendableCaching<L, CV>;
-
-  /**
-   * the list of keys the remote-state-cache has seen written to without invalidation
-   *
-   * note
-   * - this list may include keys that have been invalidated due to expiration
-   * - in otherwords, this list is a superset of all currently valid cache keys for the query
-   */
-  keys: { get: () => string[] };
 
   /**
    * the remote-state caching options this query was registered with

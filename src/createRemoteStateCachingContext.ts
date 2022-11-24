@@ -2,17 +2,16 @@ import { isAFunction, PickOne } from 'type-fns';
 import {
   WithSimpleCachingOptions,
   LogicWithExtendableCaching,
-  SimpleCacheOnSetHook,
-  WithSimpleCachingOnSetTrigger,
   withExtendableCaching,
-  SimpleCache,
   SimpleCacheResolutionMethod,
   defaultValueDeserializationMethod,
+  defaultKeySerializationMethod,
+  KeySerializationMethod,
 } from 'with-simple-caching';
-import { createCache } from 'simple-in-memory-cache';
 import { RemoteStateCacheContext, RemoteStateCacheContextQueryRegistration } from './RemoteStateCacheContext';
 import { RemoteStateQueryInvalidationTrigger, RemoteStateQueryUpdateTrigger } from './RemoteStateQueryCachingOptions';
 import { BadRequestError } from './errors/BadRequestError';
+import { RemoteStateCache } from './RemoteStateCache';
 
 interface WithRemoteStateCachingOptions {
   /**
@@ -130,16 +129,20 @@ export interface MutationWithRemoteStateRegistration<L extends (...args: any) =>
  */
 export const createRemoteStateCachingContext = <
   /**
+   * specifies the inputs common across all methods, which may be used to extract the cache at runtime, if relevant
+   */
+  SLI extends any[],
+  /**
    * specifies the shared types that can be set to the cache
    *
    * note:
    * - if it is too restrictive, you can define a serialize + deserialize method for your function's output w/ options
    */
-  SCV extends any // SCV = shared cache value
+  SCV extends any = any // SCV = shared cache value
 >({
   cache,
 }: {
-  cache: SimpleCache<SCV> | SimpleCacheResolutionMethod<any, SCV>;
+  cache: RemoteStateCache<SCV> | SimpleCacheResolutionMethod<SLI, SCV, RemoteStateCache<SCV>>;
 }) => {
   /**
    * the context we'll be using for the application
@@ -177,35 +180,28 @@ export const createRemoteStateCachingContext = <
     logic: L,
     options: Omit<WithSimpleCachingOptions<L, CV>, 'cache'> & WithRemoteStateCachingOptions,
   ): QueryWithRemoteStateCaching<L, CV> => {
-    // create an in memory cache to store the valid keys for this query
-    const keys = createCache<string[]>();
-    const getKeys = () => keys.get('keys') ?? [];
-    const setKeys = (value: string[]) => keys.set('keys', value);
+    // grab the name of this query
+    const name = extractNameFromRegistrationInputs({ operation: RemoteStateOperation.QUERY, logic, options });
 
-    // define the hook used to manage the valid keys tracked for this query's cache
-    const onSetHook: SimpleCacheOnSetHook<L, CV> = ({ trigger, forKey }) => {
-      // determine if the key already exists in the cache
-      const keyIsAlreadyMarkedAsValid = getKeys().some((key) => key === forKey);
-
-      // if this was triggered by invalidation, make sure the key is not marked as valid
-      if (trigger === WithSimpleCachingOnSetTrigger.INVALIDATE && keyIsAlreadyMarkedAsValid) setKeys(getKeys().filter((key) => key !== forKey));
-
-      // otherwise, make sure the key is marked as valid if not already so
-      if (!keyIsAlreadyMarkedAsValid) setKeys([...getKeys(), forKey]);
-    };
+    // define a key serialization method which prefixes the key with the queries name (to give each query it's own namespace)
+    const keySerializationMethodFromOptions = options.serialize?.key ?? defaultKeySerializationMethod;
+    const keySerializationMethodWithNamespace: KeySerializationMethod<Parameters<L>> = (...args) =>
+      [name, keySerializationMethodFromOptions(...args)].join('.');
 
     // extend the logic with caching
     const logicExtendedWithCaching = withExtendableCaching(logic, {
       ...options,
+      serialize: {
+        ...options.serialize,
+        key: keySerializationMethodWithNamespace,
+      },
       cache: cache as WithSimpleCachingOptions<L, CV>['cache'], // we've asserted that CV is a subset of SCV, so this in reality will work; // TODO: determine why typescript is not happy here
-      hook: { onSet: onSetHook },
     });
 
     // register this query
     const registration: RemoteStateCacheContextQueryRegistration<L, CV> = {
-      name: extractNameFromRegistrationInputs({ operation: RemoteStateOperation.QUERY, logic, options }),
+      name,
       query: logicExtendedWithCaching,
-      keys: { get: getKeys },
       options: {
         invalidatedBy: [],
         updatedBy: [],
@@ -259,11 +255,14 @@ export const createRemoteStateCachingContext = <
         );
         if (!invalidatedByThisMutationDefinition) return;
 
+        // grab the cached query keys for this query
+        const cachedQueryKeys = (await mutationCache.keys()).filter((key) => key.startsWith(registration.name)); // keys are namespaced by query name
+
         // otherwise, define what to invalidate
         const invalidate = invalidatedByThisMutationDefinition.affects({
           mutationInput,
           mutationOutput,
-          cachedQueryKeys: registration.keys.get(),
+          cachedQueryKeys,
         });
 
         // execute the invalidations
@@ -282,11 +281,14 @@ export const createRemoteStateCachingContext = <
         const updatedByThisMutationDefinition = registration.options.updatedBy.find((definition) => definition.mutation.name === mutationName);
         if (!updatedByThisMutationDefinition) return;
 
+        // grab the cached query keys for this query
+        const cachedQueryKeys = (await mutationCache.keys()).filter((key) => key.startsWith(registration.name)); // keys are namespaced by query name
+
         // otherwise, define what to update
         const affected = updatedByThisMutationDefinition.affects({
           mutationInput,
           mutationOutput,
-          cachedQueryKeys: registration.keys.get(),
+          cachedQueryKeys,
         });
 
         // define the function that will be used to update the cache with
