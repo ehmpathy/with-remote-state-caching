@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://www.github.com/ehmpathy/with-remote-state-caching/compare/v1.0.1...v1.1.0) (2022-11-24)
+
+
+### Features
+
+* **context:** allow specifying default key serialization method at context level ([767b7ce](https://www.github.com/ehmpathy/with-remote-state-caching/commit/767b7ce993c8768d809b7edf90207cd6cd6eb4d9))
+
 ### [1.0.1](https://www.github.com/ehmpathy/with-remote-state-caching/compare/v1.0.0...v1.0.1) (2022-11-24)
 
 
