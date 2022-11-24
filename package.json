@@ -1,6 +1,6 @@
 {
   "name": "with-remote-state-caching",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "A wrapper that makes it simple to add caching to any function",
   "author": "UladKasach @uladkasach",
   "license": "MIT",
