@@ -141,8 +141,22 @@ export const createRemoteStateCachingContext = <
   SCV extends any = any // SCV = shared cache value
 >({
   cache,
+  ...defaultOptions
 }: {
+  /**
+   * specify the cache to use across operations in this remote-state cache context
+   */
   cache: RemoteStateCache<SCV> | SimpleCacheResolutionMethod<SLI, SCV, RemoteStateCache<SCV>>;
+
+  /**
+   * allow specifying default serialization options
+   */
+  serialize?: {
+    /**
+     * allow specifying a default serialization key
+     */
+    key: KeySerializationMethod<SLI>;
+  };
 }) => {
   /**
    * the context we'll be using for the application
@@ -183,8 +197,9 @@ export const createRemoteStateCachingContext = <
     // grab the name of this query
     const name = extractNameFromRegistrationInputs({ operation: RemoteStateOperation.QUERY, logic, options });
 
-    // define a key serialization method which prefixes the key with the queries name (to give each query it's own namespace)
-    const keySerializationMethodFromOptions = options.serialize?.key ?? defaultKeySerializationMethod;
+    // define a key serialization method which prefixes the key with the queries name (to give each query it's own namespace), edtending the user inputted serialization method
+    const keySerializationMethodFromOptions =
+      options.serialize?.key ?? ((defaultOptions.serialize?.key as any) as KeySerializationMethod<Parameters<L>>) ?? defaultKeySerializationMethod;
     const keySerializationMethodWithNamespace: KeySerializationMethod<Parameters<L>> = (...args) =>
       [name, keySerializationMethodFromOptions(...args)].join('.');
 
