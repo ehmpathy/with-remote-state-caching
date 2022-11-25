@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://www.github.com/ehmpathy/with-remote-state-caching/compare/v1.2.0...v1.3.0) (2022-11-25)
+
+
+### Features
+
+* **cache:** better restrict acceptable type of RemoteStateCache; add default serde at context level ([a15fd1e](https://www.github.com/ehmpathy/with-remote-state-caching/commit/a15fd1e52d3b08c4d598bd29a3999aaaea9e4062))
+
 ## [1.2.0](https://www.github.com/ehmpathy/with-remote-state-caching/compare/v1.1.0...v1.2.0) (2022-11-25)
 
 
