@@ -80,11 +80,10 @@ const { withRemoteStateQueryCaching, withRemoteStateMutationRegistration } = cre
 ```
 
 
-note, in this particular example we're using [simple-localstorage-cache](https://github.com/ehmpathy/simple-localstorage-cache), but you can use any cache which works with [with-simple-caching](https://github.com/ehmpathy/with-simple-caching), for example
+note, in this particular example we're using [simple-localstorage-cache](https://github.com/ehmpathy/simple-localstorage-cache), but you can use any async cache which works with [with-simple-caching](https://github.com/ehmpathy/with-simple-caching), for example
 - [simple-on-disk-caching](https://github.com/ehmpathy/simple-on-disk-cache) for s3 and mounted persistance
 - [simple-dynamodb-caching](https://github.com/ehmpathy/simple-dynamodb-cache) for dynamodb persistance
 - [simple-localstorage-caching](https://github.com/ehmpathy/simple-localstorage-cache) for browser localstorage persistance
-- [simple-in-memory-caching](https://github.com/ehmpathy/simple-in-memory-cache) for in-memory persistance
 - etc
 
 

@@ -3,16 +3,15 @@ import {
   WithSimpleCachingOptions,
   LogicWithExtendableCaching,
   withExtendableCaching,
-  SimpleCacheResolutionMethod,
-  defaultValueDeserializationMethod,
-  defaultKeySerializationMethod,
   KeySerializationMethod,
-  defaultValueSerializationMethod,
+  WithSimpleCachingCacheOption,
+  WithSimpleCachingAsyncOptions,
 } from 'with-simple-caching';
 import { RemoteStateCacheContext, RemoteStateCacheContextQueryRegistration } from './RemoteStateCacheContext';
 import { RemoteStateQueryInvalidationTrigger, RemoteStateQueryUpdateTrigger } from './RemoteStateQueryCachingOptions';
 import { BadRequestError } from './errors/BadRequestError';
 import { RemoteStateCache } from './RemoteStateCache';
+import { defaultKeySerializationMethod, defaultValueDeserializationMethod, defaultValueSerializationMethod } from './defaults';
 
 interface WithRemoteStateCachingOptions {
   /**
@@ -91,7 +90,7 @@ export type QueryWithRemoteStateCachingAddTriggerMethod<Q extends (...args: any[
 /**
  * the shape of a query extended with remote state caching
  */
-export interface QueryWithRemoteStateCaching<L extends (...args: any) => any, CV extends any> extends LogicWithExtendableCaching<L, CV> {
+export interface QueryWithRemoteStateCaching<L extends (...args: any) => any, C extends RemoteStateCache> extends LogicWithExtendableCaching<L, C> {
   /**
    * the registered name of this query
    */
@@ -134,12 +133,9 @@ export const createRemoteStateCachingContext = <
    */
   SLI extends any[],
   /**
-   * specifies the shared types that can be set to the cache
-   *
-   * note:
-   * - if it is too restrictive, you can define a serialize + deserialize method for your function's output w/ options
+   * the type of the cache used for operations in this context
    */
-  SCV extends any // SCV = shared cache value
+  C extends RemoteStateCache
 >({
   cache,
   ...defaultOptions
@@ -147,7 +143,7 @@ export const createRemoteStateCachingContext = <
   /**
    * specify the cache to use across operations in this remote-state cache context
    */
-  cache: RemoteStateCache<SCV> | SimpleCacheResolutionMethod<SLI, SCV, RemoteStateCache<SCV>>;
+  cache: WithSimpleCachingCacheOption<SLI, C>;
 
   /**
    * allow specifying default serialization options
@@ -161,7 +157,7 @@ export const createRemoteStateCachingContext = <
     /**
      * allow specifying a default value serialization method
      */
-    value?: (output: Promise<any>) => SCV;
+    value?: Required<WithSimpleCachingAsyncOptions<any, C>>['serialize']['value'];
   };
 
   /**
@@ -171,7 +167,7 @@ export const createRemoteStateCachingContext = <
     /**
      * allow specifying a default value deserialization method
      */
-    value?: (cached: SCV) => Promise<any>;
+    value?: Required<WithSimpleCachingAsyncOptions<any, C>>['deserialize']['value'];
   };
 }) => {
   /**
@@ -206,10 +202,10 @@ export const createRemoteStateCachingContext = <
    * - automatically invalidating or updating the cached response for a query, triggered by mutations
    * - manually invalidating or updating the cached response for a query
    */
-  const withRemoteStateQueryCaching = <L extends (...args: any[]) => any, CV extends SCV = ReturnType<L>>(
+  const withRemoteStateQueryCaching = <LI extends SLI, L extends (...args: LI) => Promise<any>>(
     logic: L,
-    options: Omit<WithSimpleCachingOptions<L, CV>, 'cache'> & WithRemoteStateCachingOptions,
-  ): QueryWithRemoteStateCaching<L, CV> => {
+    options: Omit<WithSimpleCachingOptions<L, C>, 'cache'> & WithRemoteStateCachingOptions,
+  ): QueryWithRemoteStateCaching<L, C> => {
     // grab the name of this query
     const name = extractNameFromRegistrationInputs({ operation: RemoteStateOperation.QUERY, logic, options });
 
@@ -219,27 +215,31 @@ export const createRemoteStateCachingContext = <
     const keySerializationMethodWithNamespace: KeySerializationMethod<Parameters<L>> = (...args) =>
       [name, keySerializationMethodFromOptions(...args)].join('.');
 
+    // define the serde methods
+    const valueSerializationMethod = options.serialize?.value ?? (defaultOptions.serialize?.value as any) ?? defaultValueSerializationMethod;
+    const valueDeserialiationMethod = options.deserialize?.value ?? (defaultOptions.deserialize?.value as any) ?? defaultValueDeserializationMethod;
+
     // extend the logic with caching
     const logicExtendedWithCaching = withExtendableCaching(logic, {
       ...options,
       serialize: {
         key: keySerializationMethodWithNamespace,
-        value: options.serialize?.value ?? (defaultOptions.serialize?.value as any) ?? defaultValueSerializationMethod,
+        value: valueSerializationMethod,
       },
       deserialize: {
-        value: options.deserialize?.value ?? (defaultOptions.deserialize?.value as any) ?? defaultValueDeserializationMethod,
+        value: valueDeserialiationMethod,
       },
-      cache: cache as WithSimpleCachingOptions<L, CV>['cache'], // we've asserted that CV is a subset of SCV, so this in reality will work; // TODO: determine why typescript is not happy here
+      cache, // this works in practice // TODO: resolve the type assertion error
     });
 
     // register this query
-    const registration: RemoteStateCacheContextQueryRegistration<L, CV> = {
+    const registration: RemoteStateCacheContextQueryRegistration<L, C> = {
       name,
       query: logicExtendedWithCaching,
       options: {
         invalidatedBy: [],
         updatedBy: [],
-        deserialize: { value: options.deserialize?.value ?? defaultValueDeserializationMethod },
+        deserialize: { value: valueDeserialiationMethod },
       },
     };
     registerQueryToRemoteStateContext({ registration });

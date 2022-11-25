@@ -1,8 +1,10 @@
-import { createCache } from 'simple-in-memory-cache';
+import { promises as fs } from 'fs';
+import { createCache as createOnDiskCache } from 'simple-on-disk-cache';
 import { HasMetadata } from 'type-fns';
 import uuid from 'uuid';
 import { SimpleCache } from 'with-simple-caching';
 import { createRemoteStateCachingContext } from './createRemoteStateCachingContext';
+import { defaultKeySerializationMethod } from './defaults';
 import { RemoteStateCache } from './RemoteStateCache';
 
 /**
@@ -16,7 +18,21 @@ type Recipe = {
   steps: string[];
 };
 
+const cacheDir = `${__dirname}/__test_assets__/__tmp__`;
+const createCache = () =>
+  createOnDiskCache({
+    directoryToPersistTo: {
+      mounted: {
+        path: cacheDir,
+      },
+    },
+  });
+
 describe('createRemoteStateCachingContext', () => {
+  beforeEach(() =>
+    // invalidate all of the current cached data, so past tests dont interfere
+    fs.unlink([cacheDir, '_.simple_on_disk_cache.valid_keys'].join('/')).catch(() => {}),
+  );
   describe('caching', () => {
     it('should be possible to add extended caching to a query', async () => {
       // start the context
@@ -59,9 +75,9 @@ describe('createRemoteStateCachingContext', () => {
 
       // update a request
       await queryGetRecipes.update({
-        forKey: [queryGetRecipes.name, JSON.stringify([{ searchFor: 'smoothie' }])].join('.'), // update by key, instead of input
+        forKey: [queryGetRecipes.name, defaultKeySerializationMethod({ forInput: [{ searchFor: 'smoothie' }] })].join('.'), // update by key, instead of input
         toValue: async ({ fromCachedOutput }) => [
-          ...((await fromCachedOutput) ?? []),
+          ...(fromCachedOutput ?? []),
           { title: 'new smoothie', description: 'great smothie', ingredients: [], steps: [] }, // add a new recipe to it
         ],
       });
@@ -102,7 +118,7 @@ describe('createRemoteStateCachingContext', () => {
       await queryGetRecipes.execute({ searchFor: 'smoothie' });
 
       // check that the keys look correct
-      const keys = cache.keys();
+      const keys = await cache.keys();
       expect(keys.length).toEqual(2);
       expect(keys[0]).toEqual('queryGetRecipes.for.steak');
       expect(keys[1]).toEqual('queryGetRecipes.for.smoothie');
@@ -196,24 +212,21 @@ describe('createRemoteStateCachingContext', () => {
 
       // define a mutation which we'll have as a trigger for cache invalidation
       const mutationAddRecipe = withRemoteStateMutationRegistration(
-        async ({ recipe }: { recipe: Recipe }, _: { cache: RemoteStateCache<any> }) => recipe,
+        async ({ recipe }: { recipe: Recipe }, _: { cache: RemoteStateCache }) => recipe,
         {
           name: 'mutationAddRecipe',
         },
       );
 
       // define a mutation which we'll have as a trigger for cache update
-      const mutationDeleteRecipe = withRemoteStateMutationRegistration(
-        async (_: { recipeUuid: string }, __: { cache: RemoteStateCache<any> }) => {},
-        {
-          name: 'mutationDeleteRecipe',
-        },
-      );
+      const mutationDeleteRecipe = withRemoteStateMutationRegistration(async (_: { recipeUuid: string }, __: { cache: RemoteStateCache }) => {}, {
+        name: 'mutationDeleteRecipe',
+      });
 
       // define a query that we'll be caching
       const apiCalls = [];
       const queryGetRecipes = withRemoteStateQueryCaching(
-        async ({ searchFor }: { searchFor: string }, _: { cache: RemoteStateCache<any> }): Promise<HasMetadata<Recipe>[]> => {
+        async ({ searchFor }: { searchFor: string }, _: { cache: RemoteStateCache }): Promise<HasMetadata<Recipe>[]> => {
           apiCalls.push(searchFor);
           return [{ uuid: uuid(), title: '__TITLE__', description: '__DESCRIPTION__', ingredients: [], steps: [] }];
         },
@@ -408,12 +421,12 @@ describe('createRemoteStateCachingContext', () => {
     it('should allow user to specify default context level serialization and deserialization', async () => {
       // start the context
       const { withRemoteStateQueryCaching } = createRemoteStateCachingContext({
-        cache: createCache<any>(),
+        cache: createCache(),
         serialize: {
-          value: async (output) => JSON.stringify(await output),
+          value: (output) => JSON.stringify(output),
         },
         deserialize: {
-          value: async (cached) => JSON.parse(await cached),
+          value: (cached) => JSON.parse(cached),
         },
       });
 
@@ -452,7 +465,7 @@ describe('createRemoteStateCachingContext', () => {
 
       // update a request
       await queryGetRecipes.update({
-        forKey: [queryGetRecipes.name, JSON.stringify([{ searchFor: 'smoothie' }])].join('.'), // update by key, instead of input
+        forKey: [queryGetRecipes.name, defaultKeySerializationMethod({ forInput: [{ searchFor: 'smoothie' }] })].join('.'), // update by key, instead of input
         toValue: async ({ fromCachedOutput }) => [
           ...((await fromCachedOutput) ?? []),
           { title: 'new smoothie', description: 'great smothie', ingredients: [], steps: [] }, // add a new recipe to it
