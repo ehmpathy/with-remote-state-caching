@@ -7,6 +7,7 @@ import {
   defaultValueDeserializationMethod,
   defaultKeySerializationMethod,
   KeySerializationMethod,
+  defaultValueSerializationMethod,
 } from 'with-simple-caching';
 import { RemoteStateCacheContext, RemoteStateCacheContextQueryRegistration } from './RemoteStateCacheContext';
 import { RemoteStateQueryInvalidationTrigger, RemoteStateQueryUpdateTrigger } from './RemoteStateQueryCachingOptions';
@@ -138,7 +139,7 @@ export const createRemoteStateCachingContext = <
    * note:
    * - if it is too restrictive, you can define a serialize + deserialize method for your function's output w/ options
    */
-  SCV extends any = any // SCV = shared cache value
+  SCV extends any // SCV = shared cache value
 >({
   cache,
   ...defaultOptions
@@ -153,9 +154,24 @@ export const createRemoteStateCachingContext = <
    */
   serialize?: {
     /**
-     * allow specifying a default serialization key
+     * allow specifying a default key serialization method
      */
-    key: KeySerializationMethod<SLI>;
+    key?: KeySerializationMethod<SLI>;
+
+    /**
+     * allow specifying a default value serialization method
+     */
+    value?: (output: Promise<any>) => SCV;
+  };
+
+  /**
+   * allow specifying default deserialization options
+   */
+  deserialize?: {
+    /**
+     * allow specifying a default value deserialization method
+     */
+    value?: (cached: SCV) => Promise<any>;
   };
 }) => {
   /**
@@ -190,7 +206,7 @@ export const createRemoteStateCachingContext = <
    * - automatically invalidating or updating the cached response for a query, triggered by mutations
    * - manually invalidating or updating the cached response for a query
    */
-  const withRemoteStateQueryCaching = <L extends (...args: any[]) => any, CV extends any = ReturnType<L>>(
+  const withRemoteStateQueryCaching = <L extends (...args: any[]) => any, CV extends SCV = ReturnType<L>>(
     logic: L,
     options: Omit<WithSimpleCachingOptions<L, CV>, 'cache'> & WithRemoteStateCachingOptions,
   ): QueryWithRemoteStateCaching<L, CV> => {
@@ -207,8 +223,11 @@ export const createRemoteStateCachingContext = <
     const logicExtendedWithCaching = withExtendableCaching(logic, {
       ...options,
       serialize: {
-        ...options.serialize,
         key: keySerializationMethodWithNamespace,
+        value: options.serialize?.value ?? (defaultOptions.serialize?.value as any) ?? defaultValueSerializationMethod,
+      },
+      deserialize: {
+        value: options.deserialize?.value ?? (defaultOptions.deserialize?.value as any) ?? defaultValueDeserializationMethod,
       },
       cache: cache as WithSimpleCachingOptions<L, CV>['cache'], // we've asserted that CV is a subset of SCV, so this in reality will work; // TODO: determine why typescript is not happy here
     });
@@ -244,7 +263,7 @@ export const createRemoteStateCachingContext = <
   /**
    * define a method which is able to kick off all registered query invalidations and query updates, on the execution of a mutation
    */
-  const onMutationOutput = async <LO extends any, CV extends any, M extends (...args: any) => any>({
+  const onMutationOutput = async <LI extends any, LO extends any, M extends (...args: any) => any>({
     mutationName,
     mutationInput,
     mutationOutput,
@@ -307,11 +326,11 @@ export const createRemoteStateCachingContext = <
         });
 
         // define the function that will be used to update the cache with
-        const toValue: (args: { cachedValue: CV | undefined }) => LO = ({ cachedValue }) =>
-          cachedValue // only run the update if the cache is still valid for this key; otherwise, it shouldn't have been called; i.e., sheild the trigger function from invalidated, undefined, cache values
+        const toValue: (args: { fromCachedOutput: LI | undefined }) => LO = ({ fromCachedOutput }) =>
+          fromCachedOutput // only run the update if the cache is still valid for this key; otherwise, it shouldn't have been called; i.e., sheild the trigger function from invalidated, undefined, cache values
             ? updatedByThisMutationDefinition.update({
                 from: {
-                  cachedQueryOutput: Promise.resolve(cachedValue).then(registration.options.deserialize.value), // ensure to wrap it in a promise, so that even if a sync cache is used, the result is consistent w/ output type
+                  cachedQueryOutput: Promise.resolve(fromCachedOutput), // ensure to wrap it in a promise, so that even if a sync cache is used, the result is consistent w/ output type
                 },
                 with: {
                   mutationInput,

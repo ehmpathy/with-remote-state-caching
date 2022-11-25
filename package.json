@@ -66,6 +66,6 @@
   },
   "dependencies": {
     "type-fns": "^0.4.1",
-    "with-simple-caching": "^0.9.4"
+    "with-simple-caching": "^0.9.5"
   }
 }
