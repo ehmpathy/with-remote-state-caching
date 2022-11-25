@@ -1,4 +1,5 @@
 import { LogicWithExtendableCaching } from 'with-simple-caching';
+import { RemoteStateCache } from '.';
 import { WithRemoteStateQueryCachingOptions } from './RemoteStateQueryCachingOptions';
 
 /**
@@ -9,7 +10,7 @@ import { WithRemoteStateQueryCachingOptions } from './RemoteStateQueryCachingOpt
  * - the query itself, wrapped with extended caching, so that we can execute, invalidate, and update it
  * - options that the query was provisioned with
  */
-export interface RemoteStateCacheContextQueryRegistration<L extends (...args: any[]) => any, CV extends any> {
+export interface RemoteStateCacheContextQueryRegistration<L extends (...args: any[]) => any, C extends RemoteStateCache> {
   /**
    * the name of the query
    */
@@ -18,7 +19,7 @@ export interface RemoteStateCacheContextQueryRegistration<L extends (...args: an
   /**
    * the query with extended caching which can be used
    */
-  query: LogicWithExtendableCaching<L, CV>;
+  query: LogicWithExtendableCaching<L, C>;
 
   /**
    * the remote-state caching options this query was registered with
