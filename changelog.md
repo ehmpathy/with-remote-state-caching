@@ -1,5 +1,12 @@
 # Changelog
 
+### [1.3.2](https://www.github.com/ehmpathy/with-remote-state-caching/compare/v1.3.1...v1.3.2) (2022-11-25)
+
+
+### Bug Fixes
+
+* **deps:** upgrade depenedency on type fns ([7201a41](https://www.github.com/ehmpathy/with-remote-state-caching/commit/7201a41558536149ff41c2b501016bd660d17a61))
+
 ### [1.3.1](https://www.github.com/ehmpathy/with-remote-state-caching/compare/v1.3.0...v1.3.1) (2022-11-25)
 
 
