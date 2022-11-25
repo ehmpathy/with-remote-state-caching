@@ -1,5 +1,12 @@
 # Changelog
 
+### [1.3.1](https://www.github.com/ehmpathy/with-remote-state-caching/compare/v1.3.0...v1.3.1) (2022-11-25)
+
+
+### Bug Fixes
+
+* **types:** fix stragler type def ([aef4e58](https://www.github.com/ehmpathy/with-remote-state-caching/commit/aef4e586bfafe89a32e0e242a329d0ffce98fb9d))
+
 ## [1.3.0](https://www.github.com/ehmpathy/with-remote-state-caching/compare/v1.2.0...v1.3.0) (2022-11-25)
 
 
