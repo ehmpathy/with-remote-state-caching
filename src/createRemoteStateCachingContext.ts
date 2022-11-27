@@ -352,7 +352,7 @@ export const createRemoteStateCachingContext = <
    * relevance
    * - this enables the mutation to trigger invalidation and updates of queries
    */
-  const withRemoteStateMutationRegistration = <L extends (...args: any[]) => any, CV extends any>(
+  const withRemoteStateMutationRegistration = <L extends (...args: any[]) => any>(
     logic: L,
     options: WithRemoteStateCachingOptions,
   ): MutationWithRemoteStateRegistration<L> => {

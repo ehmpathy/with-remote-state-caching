@@ -296,6 +296,106 @@ describe('createRemoteStateCachingContext', () => {
       expect(result6.length).toEqual(0); // should no longer have any results, since our updatedBy trigger should have removed the recipe by uuid
       expect(apiCalls.length).toEqual(3); // should not have had another api call, since we updated the cache, not invalidated it
     });
+    it('should be not trigger invalidations nor updates if the mutation threw an error', async () => {
+      // start the context
+      const { withRemoteStateQueryCaching, withRemoteStateMutationRegistration } = createRemoteStateCachingContext({ cache: createCache() });
+
+      // define a mutation which we'll have as a trigger for cache invalidation
+      const mutationAddRecipe = withRemoteStateMutationRegistration(
+        async (_: { recipe: Recipe }) => {
+          throw new Error('surprise!');
+        },
+        { name: 'mutationAddRecipe' },
+      );
+
+      // define a mutation which we'll have as a trigger for cache update
+      const mutationDeleteRecipe = withRemoteStateMutationRegistration(
+        async (_: { recipeUuid: string }) => {
+          throw new Error('surprise!');
+        },
+        {
+          name: 'mutationDeleteRecipe',
+        },
+      );
+
+      // define a query that we'll be caching
+      const apiCalls = [];
+      const queryGetRecipes = withRemoteStateQueryCaching(
+        async ({ searchFor }: { searchFor: string }): Promise<HasMetadata<Recipe>[]> => {
+          apiCalls.push(searchFor);
+          return [{ uuid: uuid(), title: '__TITLE__', description: '__DESCRIPTION__', ingredients: [], steps: [] }];
+        },
+        {
+          name: 'queryGetRecipes',
+        },
+      );
+
+      // assign the invalidatedBy and updatedBy triggers
+      queryGetRecipes.addTrigger({
+        invalidatedBy: {
+          mutation: mutationAddRecipe,
+          affects: ({ mutationInput }) => ({
+            inputs: mutationInput[0].recipe.title.split(' ').map((substring) => [{ searchFor: substring }]), // invalidate every query that was run on a word in the title of the recipe (note: this is not a good real-world example, but does the job for testing)
+          }),
+        },
+      });
+      queryGetRecipes.addTrigger({
+        updatedBy: {
+          mutation: mutationDeleteRecipe,
+          affects: ({ cachedQueryKeys }) => ({ keys: cachedQueryKeys }), // update _all_ keys, since we dont know which ones will have included this recipe
+          update: ({ from: { cachedQueryOutput }, with: { mutationInput } }) =>
+            cachedQueryOutput.then((recipes) => recipes.filter((recipe) => recipe.uuid !== mutationInput[0].recipeUuid)),
+        },
+      });
+
+      // make a few requests
+      const result1 = await queryGetRecipes.execute({ searchFor: 'steak' });
+      const result2 = await queryGetRecipes.execute({ searchFor: 'smoothie' });
+      const result3 = await queryGetRecipes.execute({ searchFor: 'steak' });
+      const result4 = await queryGetRecipes.execute({ searchFor: 'smoothie' });
+
+      // prove that subsequent duplicate requests returned the same result
+      expect(result3).toEqual(result1);
+      expect(result4).toEqual(result2);
+
+      // prove that we only called the api twice, once per unique request, since dupe request responses should have come from cache
+      expect(apiCalls.length).toEqual(2);
+
+      // execute mutation to add a recipe which includes the word 'steak' in the title, but which threw an error
+      try {
+        await mutationAddRecipe.execute({
+          recipe: {
+            title: 'perfect, jalapeno t-bone steak',
+            description: 'a juicy, perfectly cooked, spicy, jalapeno t-bone steak',
+            ingredients: [],
+            steps: [],
+          },
+        });
+        throw new Error('should not reach here');
+      } catch (error) {
+        if (!(error instanceof Error)) throw error;
+        expect(error.message).toEqual('surprise!');
+      }
+
+      // prove that we did not invalidate the request, since the mutation failed
+      const result5 = await queryGetRecipes.execute({ searchFor: 'steak' });
+      expect(result5).toEqual(result1); // should have gotten the same result after cache invalidation
+      expect(apiCalls.length).toEqual(2); // and should not have called the api after cache invalidation
+
+      // execute mutation to delete a recipe we've previously found for smoothie
+      try {
+        await mutationDeleteRecipe.execute({ recipeUuid: result2[0].uuid });
+        throw new Error('should not reach here');
+      } catch (error) {
+        if (!(error instanceof Error)) throw error;
+        expect(error.message).toEqual('surprise!');
+      }
+
+      // prove that we did not update the cached value for that request
+      const result6 = await queryGetRecipes.execute({ searchFor: 'smoothie' });
+      expect(result6).toEqual(result2);
+      expect(apiCalls.length).toEqual(2); // should not have had another api call, since still would have been cached
+    });
   });
 
   describe('ephemeral contexts', () => {
