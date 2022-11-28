@@ -1,5 +1,14 @@
 # Changelog
 
+### [1.3.3](https://www.github.com/ehmpathy/with-remote-state-caching/compare/v1.3.2...v1.3.3) (2022-11-28)
+
+
+### Bug Fixes
+
+* **deps:** bump with-simple-caching dep version ([1e2aa97](https://www.github.com/ehmpathy/with-remote-state-caching/commit/1e2aa97980ca03ab0f6771da8a42988859c1b1c5))
+* **mutations:** ensure mutations say the correct operation type when getting name fails ([b47c569](https://www.github.com/ehmpathy/with-remote-state-caching/commit/b47c56914ecb9525beab547101c2ef56c09fb10b))
+* **tests:** add additional test coverage ensuring proper operation of triggers ([e558809](https://www.github.com/ehmpathy/with-remote-state-caching/commit/e558809d89fa215d50dac9d11f89ec9e11d50dca))
+
 ### [1.3.2](https://www.github.com/ehmpathy/with-remote-state-caching/compare/v1.3.1...v1.3.2) (2022-11-25)
 
 
