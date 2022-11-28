@@ -1,5 +1,12 @@
 # Changelog
 
+### [1.3.4](https://www.github.com/ehmpathy/with-remote-state-caching/compare/v1.3.3...v1.3.4) (2022-11-28)
+
+
+### Bug Fixes
+
+* **deps:** bump with-simple-caching dep version ([fba8b7b](https://www.github.com/ehmpathy/with-remote-state-caching/commit/fba8b7be56d4d8ab14765ebbce711da2d901ca44))
+
 ### [1.3.3](https://www.github.com/ehmpathy/with-remote-state-caching/compare/v1.3.2...v1.3.3) (2022-11-28)
 
 
