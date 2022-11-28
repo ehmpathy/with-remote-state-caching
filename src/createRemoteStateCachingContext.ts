@@ -1,8 +1,8 @@
 import { isAFunction, PickOne } from 'type-fns';
 import {
   WithSimpleCachingOptions,
-  LogicWithExtendableCaching,
-  withExtendableCaching,
+  LogicWithExtendableCachingAsync,
+  withExtendableCachingAsync,
   KeySerializationMethod,
   WithSimpleCachingCacheOption,
   WithSimpleCachingAsyncOptions,
@@ -92,7 +92,8 @@ export type QueryWithRemoteStateCachingAddTriggerMethod<Q extends (...args: any[
 /**
  * the shape of a query extended with remote state caching
  */
-export interface QueryWithRemoteStateCaching<L extends (...args: any) => any, C extends RemoteStateCache> extends LogicWithExtendableCaching<L, C> {
+export interface QueryWithRemoteStateCaching<L extends (...args: any) => any, C extends RemoteStateCache>
+  extends LogicWithExtendableCachingAsync<L, C> {
   /**
    * the registered name of this query
    */
@@ -222,7 +223,7 @@ export const createRemoteStateCachingContext = <
     const valueDeserialiationMethod = options.deserialize?.value ?? (defaultOptions.deserialize?.value as any) ?? defaultValueDeserializationMethod;
 
     // extend the logic with caching
-    const logicExtendedWithCaching = withExtendableCaching(logic, {
+    const logicExtendedWithCaching = withExtendableCachingAsync(logic, {
       ...options,
       serialize: {
         key: keySerializationMethodWithNamespace,
