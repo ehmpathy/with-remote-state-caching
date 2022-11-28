@@ -68,6 +68,8 @@ export const extractNameFromRegistrationInputs = ({
       `name was not defined on ${operation.toLowerCase()} registration. can not register ${operation.toLowerCase()} to remote state context`,
       {
         name,
+        nameFromFunctionReference,
+        nameFromExplicitOptions,
       },
     );
   return name;
@@ -357,7 +359,7 @@ export const createRemoteStateCachingContext = <
     options: WithRemoteStateCachingOptions,
   ): MutationWithRemoteStateRegistration<L> => {
     // define the mutation name
-    const mutationName = extractNameFromRegistrationInputs({ operation: RemoteStateOperation.QUERY, logic, options });
+    const mutationName = extractNameFromRegistrationInputs({ operation: RemoteStateOperation.MUTATION, logic, options });
 
     // define the execute function, with triggers onMutationOutput
     const execute: L = (async (...args: Parameters<L>): Promise<ReturnType<L>> => {
