@@ -1,6 +1,18 @@
 import { WithSimpleCachingOptions } from 'with-simple-caching';
 import { MutationWithRemoteStateRegistration } from './createRemoteStateCachingContext';
 
+export enum MutationExecutionStatus {
+  /**
+   * the mutation successfully executed and resolved a value
+   */
+  RESOLVED = 'RESOLVED',
+
+  /**
+   * the mutation threw an error and rejected
+   */
+  REJECTED = 'REJECTED',
+}
+
 /**
  * an invalidation trigger for the cache of a remote-state-query
  * - allows the user to specify which keys become invalid when a specific mutation fires
@@ -24,8 +36,24 @@ export interface RemoteStateQueryInvalidationTrigger<Q extends (...args: any) =>
    * - provides the list of all currently cached query strings
    */
   affects: (args: {
+    /**
+     * the input the triggering mutation was invoked with
+     */
     mutationInput: Parameters<M>;
-    mutationOutput: ReturnType<M>;
+    /**
+     * the output the triggering mutation produced
+     *
+     * note
+     * - this may be null if the mutation threw an error
+     */
+    mutationOutput: ReturnType<M> | null;
+    /**
+     * the status of the execution
+     */
+    mutationStatus: MutationExecutionStatus;
+    /**
+     * specifies all of the keys that are currently cached
+     */
     cachedQueryKeys: string[];
   }) => {
     inputs?: Parameters<Q>[];
@@ -69,8 +97,15 @@ export interface RemoteStateQueryUpdateTrigger<Q extends (...args: any) => any, 
       mutationInput: Parameters<M>;
       /**
        * the output the triggering mutation produced
+       *
+       * note
+       * - this may be null if the mutation threw an error
        */
-      mutationOutput: ReturnType<M>;
+      mutationOutput: ReturnType<M> | null;
+      /**
+       * the status of the execution
+       */
+      mutationStatus: MutationExecutionStatus;
     };
   }) => ReturnType<Q>;
 }

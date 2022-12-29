@@ -8,7 +8,7 @@ import {
   WithSimpleCachingAsyncOptions,
 } from 'with-simple-caching';
 import { RemoteStateCacheContext, RemoteStateCacheContextQueryRegistration } from './RemoteStateCacheContext';
-import { RemoteStateQueryInvalidationTrigger, RemoteStateQueryUpdateTrigger } from './RemoteStateQueryCachingOptions';
+import { MutationExecutionStatus, RemoteStateQueryInvalidationTrigger, RemoteStateQueryUpdateTrigger } from './RemoteStateQueryCachingOptions';
 import { BadRequestError } from './errors/BadRequestError';
 import { RemoteStateCache } from './RemoteStateCache';
 import { defaultKeySerializationMethod, defaultValueDeserializationMethod, defaultValueSerializationMethod } from './defaults';
@@ -270,10 +270,12 @@ export const createRemoteStateCachingContext = <
     mutationName,
     mutationInput,
     mutationOutput,
+    mutationStatus,
   }: {
     mutationName: string;
     mutationInput: Parameters<M>;
-    mutationOutput: ReturnType<M>;
+    mutationOutput: ReturnType<M> | null;
+    mutationStatus: MutationExecutionStatus;
   }) => {
     const registrations = Object.values(context.registered.queries);
 
@@ -299,6 +301,7 @@ export const createRemoteStateCachingContext = <
         const invalidate = invalidatedByThisMutationDefinition.affects({
           mutationInput,
           mutationOutput,
+          mutationStatus,
           cachedQueryKeys,
         });
 
@@ -325,6 +328,7 @@ export const createRemoteStateCachingContext = <
         const affected = updatedByThisMutationDefinition.affects({
           mutationInput,
           mutationOutput,
+          mutationStatus,
           cachedQueryKeys,
         });
 
@@ -338,6 +342,7 @@ export const createRemoteStateCachingContext = <
                 with: {
                   mutationInput,
                   mutationOutput,
+                  mutationStatus,
                 },
               })
             : undefined;
@@ -364,9 +369,14 @@ export const createRemoteStateCachingContext = <
 
     // define the execute function, with triggers onMutationOutput
     const execute: L = (async (...args: Parameters<L>): Promise<ReturnType<L>> => {
-      const result = (await logic(...args)) as ReturnType<L>;
-      await onMutationOutput({ mutationName, mutationInput: args, mutationOutput: result });
-      return result;
+      try {
+        const result = (await logic(...args)) as ReturnType<L>;
+        await onMutationOutput({ mutationName, mutationInput: args, mutationOutput: result, mutationStatus: MutationExecutionStatus.RESOLVED });
+        return result;
+      } catch (error) {
+        await onMutationOutput({ mutationName, mutationInput: args, mutationOutput: null, mutationStatus: MutationExecutionStatus.REJECTED });
+        throw error;
+      }
     }) as L;
 
     // return the extended logic

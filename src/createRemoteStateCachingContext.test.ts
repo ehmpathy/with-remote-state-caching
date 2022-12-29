@@ -296,7 +296,7 @@ describe('createRemoteStateCachingContext', () => {
       expect(result6.length).toEqual(0); // should no longer have any results, since our updatedBy trigger should have removed the recipe by uuid
       expect(apiCalls.length).toEqual(3); // should not have had another api call, since we updated the cache, not invalidated it
     });
-    it('should be not trigger invalidations nor updates if the mutation threw an error', async () => {
+    it('should still trigger invalidations and updates if the mutation threw an error', async () => {
       // start the context
       const { withRemoteStateQueryCaching, withRemoteStateMutationRegistration } = createRemoteStateCachingContext({ cache: createCache() });
 
@@ -377,10 +377,10 @@ describe('createRemoteStateCachingContext', () => {
         expect(error.message).toEqual('surprise!');
       }
 
-      // prove that we did not invalidate the request, since the mutation failed
+      // prove that we invalidated the request
       const result5 = await queryGetRecipes.execute({ searchFor: 'steak' });
-      expect(result5).toEqual(result1); // should have gotten the same result after cache invalidation
-      expect(apiCalls.length).toEqual(2); // and should not have called the api after cache invalidation
+      expect(result5).not.toEqual(result1); // should have gotten a different result after cache invalidation
+      expect(apiCalls.length).toEqual(3); // and should have called the api after cache invalidation
 
       // execute mutation to delete a recipe we've previously found for smoothie
       try {
@@ -391,10 +391,11 @@ describe('createRemoteStateCachingContext', () => {
         expect(error.message).toEqual('surprise!');
       }
 
-      // prove that we did not update the cached value for that request
+      // prove that we updated the cached value for that request
       const result6 = await queryGetRecipes.execute({ searchFor: 'smoothie' });
-      expect(result6).toEqual(result2);
-      expect(apiCalls.length).toEqual(2); // should not have had another api call, since still would have been cached
+      expect(result2.length).toEqual(1);
+      expect(result6.length).toEqual(0); // should no longer have any results, since our updatedBy trigger should have removed the recipe by uuid
+      expect(apiCalls.length).toEqual(3); // should not have had another api call, since we updated the cache, not invalidated it
     });
   });
 
