@@ -1,5 +1,12 @@
 # Changelog
 
+### [1.3.5](https://www.github.com/ehmpathy/with-remote-state-caching/compare/v1.3.4...v1.3.5) (2022-12-29)
+
+
+### Bug Fixes
+
+* **triggers:** trigger updates and invaludations even on mutation error ([b77d127](https://www.github.com/ehmpathy/with-remote-state-caching/commit/b77d127e3ad0d4f1194eaee2385bfd33d2952ce6))
+
 ### [1.3.4](https://www.github.com/ehmpathy/with-remote-state-caching/compare/v1.3.3...v1.3.4) (2022-11-28)
 
 
