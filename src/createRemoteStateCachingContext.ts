@@ -1,9 +1,3 @@
-import { RemoteStateCache } from './RemoteStateCache';
-import { RemoteStateCacheContext, RemoteStateCacheContextQueryRegistration } from './RemoteStateCacheContext';
-import { MutationExecutionStatus, RemoteStateQueryInvalidationTrigger, RemoteStateQueryUpdateTrigger } from './RemoteStateQueryCachingOptions';
-import { defaultKeySerializationMethod, defaultValueDeserializationMethod, defaultValueSerializationMethod } from './defaults';
-import { BadRequestError } from './errors/BadRequestError';
-import { isAFunction, PickOne } from 'type-fns';
 import {
   WithSimpleCachingOptions,
   LogicWithExtendableCachingAsync,
@@ -12,6 +6,12 @@ import {
   WithSimpleCachingCacheOption,
   WithSimpleCachingAsyncOptions,
 } from 'with-simple-caching';
+import { isAFunction, PickOne } from 'type-fns';
+import { RemoteStateCache } from './RemoteStateCache';
+import { RemoteStateCacheContext, RemoteStateCacheContextQueryRegistration } from './RemoteStateCacheContext';
+import { MutationExecutionStatus, RemoteStateQueryInvalidationTrigger, RemoteStateQueryUpdateTrigger } from './RemoteStateQueryCachingOptions';
+import { defaultKeySerializationMethod, defaultValueDeserializationMethod, defaultValueSerializationMethod } from './defaults';
+import { BadRequestError } from './errors/BadRequestError';
 
 interface WithRemoteStateCachingOptions {
   /**
@@ -146,7 +146,7 @@ export const createRemoteStateCachingContext = <
   /**
    * the type of the cache used for operations in this context
    */
-  C extends RemoteStateCache,
+  C extends RemoteStateCache
 >({
   cache,
   ...defaultOptions
@@ -222,7 +222,7 @@ export const createRemoteStateCachingContext = <
 
     // define a key serialization method which prefixes the key with the queries name (to give each query it's own namespace), edtending the user inputted serialization method
     const keySerializationMethodFromOptions =
-      options.serialize?.key ?? (defaultOptions.serialize?.key as any as KeySerializationMethod<Parameters<L>>) ?? defaultKeySerializationMethod;
+      options.serialize?.key ?? ((defaultOptions.serialize?.key as any) as KeySerializationMethod<Parameters<L>>) ?? defaultKeySerializationMethod;
     const keySerializationMethodWithNamespace: KeySerializationMethod<Parameters<L>> = (...args) =>
       [name, keySerializationMethodFromOptions(...args)].join('.');
 
@@ -282,7 +282,7 @@ export const createRemoteStateCachingContext = <
   }: {
     mutationName: string;
     mutationInput: Parameters<M>;
-    mutationOutput: ReturnType<M> | null;
+    mutationOutput: Awaited<ReturnType<M>> | null;
     mutationStatus: MutationExecutionStatus;
   }) => {
     const registrations = Object.values(context.registered.queries);
