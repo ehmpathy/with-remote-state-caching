@@ -46,7 +46,7 @@ export interface RemoteStateQueryInvalidationTrigger<Q extends (...args: any) =>
      * note
      * - this may be null if the mutation threw an error
      */
-    mutationOutput: ReturnType<M> | null;
+    mutationOutput: Awaited<ReturnType<M>> | null;
     /**
      * the status of the execution
      */
@@ -101,7 +101,7 @@ export interface RemoteStateQueryUpdateTrigger<Q extends (...args: any) => any, 
        * note
        * - this may be null if the mutation threw an error
        */
-      mutationOutput: ReturnType<M> | null;
+      mutationOutput: Awaited<ReturnType<M>> | null;
       /**
        * the status of the execution
        */
