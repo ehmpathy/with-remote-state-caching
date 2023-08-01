@@ -20,8 +20,13 @@ interface WithRemoteStateCachingOptions {
    * relevance
    * - if you define an arrow function within the wrapper, no name will be assigned to it, and you will need to manually specify one
    * - otherwise, a name will automatically be specified, and this is unnessesary
+   *
+   * note
+   * - if you want to use a different name for this function in the cache, use `name.override`
+   *   - by default, if the function.name !== options.name, this will throw an error due to that being an ambiguous scenario (two names being defined)
+   *   - however, if you are sure you want to override the given name of the function, you can make that clear with the `override` value
    */
-  name?: string;
+  name?: string | { override: string };
 }
 
 /**
@@ -53,10 +58,18 @@ export const extractNameFromRegistrationInputs = ({
 }) => {
   // define the name
   const nameFromFunctionReference = logic.name;
-  const nameFromExplicitOptions = options.name;
-  if (nameFromExplicitOptions && nameFromFunctionReference && nameFromExplicitOptions !== nameFromFunctionReference)
+  const nameFromExplicitOptions = !options.name ? null : typeof options.name === 'string' ? options.name : options.name.override;
+  const nameFromExplicitOptionsIsOverride = options.name && typeof options.name !== 'string' && options.name.override;
+  if (
+    nameFromExplicitOptions &&
+    nameFromFunctionReference &&
+    nameFromExplicitOptionsIsOverride &&
+    nameFromExplicitOptions !== nameFromFunctionReference
+  )
     throw new BadRequestError(
-      `a ${operation.toLowerCase()} was attempted to be registered to remote-state caching with a name explicitly defined which differed from the name property of the wrapped logic function reference. this is ambiguous, so we do not allow this. must use function reference name`,
+      `a ${operation.toLowerCase()} was attempted to be registered to remote-state caching with a name explicitly defined which differed from the name property of the wrapped logic function reference. this is ambiguous, so we do not allow this.
+
+if you are sure you want to override the given name of the function, set 'name: { override: "${nameFromExplicitOptions}" }' instead`,
       {
         nameFromFunctionReference,
         nameFromExplicitOptions,
