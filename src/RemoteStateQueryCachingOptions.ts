@@ -1,4 +1,5 @@
 import { WithSimpleCachingOptions } from 'with-simple-caching';
+
 import { MutationWithRemoteStateRegistration } from './createRemoteStateCachingContext';
 
 export enum MutationExecutionStatus {
@@ -18,7 +19,10 @@ export enum MutationExecutionStatus {
  * - allows the user to specify which keys become invalid when a specific mutation fires
  * - exposes full context needed to specify the invalidated keys conviniently
  */
-export interface RemoteStateQueryInvalidationTrigger<Q extends (...args: any) => any, M extends (...args: any) => any> {
+export interface RemoteStateQueryInvalidationTrigger<
+  Q extends (...args: any) => any,
+  M extends (...args: any) => any,
+> {
   /**
    * a reference to the mutation which triggers this
    *
@@ -68,8 +72,10 @@ export interface RemoteStateQueryInvalidationTrigger<Q extends (...args: any) =>
  * - allows the user to specify what operation to run to update each key
  * - exposes the current cached value and mutation args for each operation
  */
-export interface RemoteStateQueryUpdateTrigger<Q extends (...args: any) => any, M extends (...args: any) => any>
-  extends RemoteStateQueryInvalidationTrigger<Q, M> {
+export interface RemoteStateQueryUpdateTrigger<
+  Q extends (...args: any) => any,
+  M extends (...args: any) => any,
+> extends RemoteStateQueryInvalidationTrigger<Q, M> {
   /**
    * a method which specifies which how to update the cached value of query output from current value for a particular mutation
    *
@@ -117,7 +123,9 @@ export interface RemoteStateQueryUpdateTrigger<Q extends (...args: any) => any, 
  * - user to specify cache invalidations of the query triggered by mutations
  * - user to specify cache updates of the query, triggered by mutations
  */
-export interface WithRemoteStateQueryCachingOptions<Q extends (...args: any) => any> {
+export interface WithRemoteStateQueryCachingOptions<
+  Q extends (...args: any) => any,
+> {
   /**
    * specifies that we must invalidate the cached response of the query, for certain inputs, when one of these triggers fires, signaling that the remote state has changed
    *

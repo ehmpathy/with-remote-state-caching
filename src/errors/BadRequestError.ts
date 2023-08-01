@@ -6,7 +6,9 @@
  */
 export class BadRequestError extends Error {
   constructor(message: string, metadata?: Record<string, any>) {
-    const fullMessage = `BadRequestError: ${message}${metadata ? `\n\n${JSON.stringify(metadata)}` : ''}}`;
+    const fullMessage = `BadRequestError: ${message}${
+      metadata ? `\n\n${JSON.stringify(metadata)}` : ''
+    }}`;
     super(fullMessage);
   }
 }

@@ -1,2 +1,5 @@
-export { createRemoteStateCachingContext, RemoteStateOperation } from './createRemoteStateCachingContext';
+export {
+  createRemoteStateCachingContext,
+  RemoteStateOperation,
+} from './createRemoteStateCachingContext';
 export { RemoteStateCache } from './RemoteStateCache';

@@ -1,11 +1,12 @@
 import { promises as fs } from 'fs';
 import { createCache as createOnDiskCache } from 'simple-on-disk-cache';
 import { HasMetadata } from 'type-fns';
-import uuid from 'uuid';
+import { v4 as uuid } from 'uuid';
 import { SimpleCache } from 'with-simple-caching';
+
+import { RemoteStateCache } from './RemoteStateCache';
 import { createRemoteStateCachingContext } from './createRemoteStateCachingContext';
 import { defaultKeySerializationMethod } from './defaults';
-import { RemoteStateCache } from './RemoteStateCache';
 
 /**
  * a recipe
@@ -31,7 +32,9 @@ const createCache = () =>
 describe('createRemoteStateCachingContext', () => {
   beforeEach(() =>
     // invalidate all of the current cached data, so past tests dont interfere
-    fs.unlink([cacheDir, '_.simple_on_disk_cache.valid_keys'].join('/')).catch(() => {}),
+    fs
+      .unlink([cacheDir, '_.simple_on_disk_cache.valid_keys'].join('/'))
+      .catch(() => {}),
   );
   describe('caching', () => {
     it('should be possible to add extended caching to a query', async () => {
@@ -45,7 +48,15 @@ describe('createRemoteStateCachingContext', () => {
       const queryGetRecipes = withRemoteStateQueryCaching(
         async ({ searchFor }: { searchFor: string }): Promise<Recipe[]> => {
           apiCalls.push(searchFor);
-          return [{ uuid: uuid(), title: '__TITLE__', description: '__DESCRIPTION__', ingredients: [], steps: [] }];
+          return [
+            {
+              uuid: uuid(),
+              title: '__TITLE__',
+              description: '__DESCRIPTION__',
+              ingredients: [],
+              steps: [],
+            },
+          ];
         },
         {
           name: 'queryGetRecipes',
@@ -75,10 +86,20 @@ describe('createRemoteStateCachingContext', () => {
 
       // update a request
       await queryGetRecipes.update({
-        forKey: [queryGetRecipes.name, defaultKeySerializationMethod({ forInput: [{ searchFor: 'smoothie' }] })].join('.'), // update by key, instead of input
+        forKey: [
+          queryGetRecipes.name,
+          defaultKeySerializationMethod({
+            forInput: [{ searchFor: 'smoothie' }],
+          }),
+        ].join('.'), // update by key, instead of input
         toValue: async ({ fromCachedOutput }) => [
           ...(fromCachedOutput ?? []),
-          { title: 'new smoothie', description: 'great smothie', ingredients: [], steps: [] }, // add a new recipe to it
+          {
+            title: 'new smoothie',
+            description: 'great smothie',
+            ingredients: [],
+            steps: [],
+          }, // add a new recipe to it
         ],
       });
 
@@ -95,7 +116,8 @@ describe('createRemoteStateCachingContext', () => {
       const { withRemoteStateQueryCaching } = createRemoteStateCachingContext({
         cache,
         serialize: {
-          key: ({ forInput }) => ['for', ...Object.values(forInput[0])].join('.'), // add a default serialization method
+          key: ({ forInput }) =>
+            ['for', ...Object.values(forInput[0])].join('.'), // add a default serialization method
         },
       });
 
@@ -104,7 +126,15 @@ describe('createRemoteStateCachingContext', () => {
       const queryGetRecipes = withRemoteStateQueryCaching(
         async ({ searchFor }: { searchFor: string }): Promise<Recipe[]> => {
           apiCalls.push(searchFor);
-          return [{ uuid: uuid(), title: '__TITLE__', description: '__DESCRIPTION__', ingredients: [], steps: [] }];
+          return [
+            {
+              uuid: uuid(),
+              title: '__TITLE__',
+              description: '__DESCRIPTION__',
+              ingredients: [],
+              steps: [],
+            },
+          ];
         },
         {
           name: 'queryGetRecipes',
@@ -127,22 +157,43 @@ describe('createRemoteStateCachingContext', () => {
   describe('triggers', () => {
     it('should be possible to automatically invalidate and update a query cache from mutations', async () => {
       // start the context
-      const { withRemoteStateQueryCaching, withRemoteStateMutationRegistration } = createRemoteStateCachingContext({ cache: createCache() });
+      const {
+        withRemoteStateQueryCaching,
+        withRemoteStateMutationRegistration,
+      } = createRemoteStateCachingContext({ cache: createCache() });
 
       // define a mutation which we'll have as a trigger for cache invalidation
-      const mutationAddRecipe = withRemoteStateMutationRegistration(async ({ recipe }: { recipe: Recipe }) => recipe, { name: 'mutationAddRecipe' });
+      const mutationAddRecipe = withRemoteStateMutationRegistration(
+        async ({ recipe }: { recipe: Recipe }) => recipe,
+        { name: 'mutationAddRecipe' },
+      );
 
       // define a mutation which we'll have as a trigger for cache update
-      const mutationDeleteRecipe = withRemoteStateMutationRegistration(async (_: { recipeUuid: string }) => {}, {
-        name: 'mutationDeleteRecipe',
-      });
+      const mutationDeleteRecipe = withRemoteStateMutationRegistration(
+        async (_: { recipeUuid: string }) => {},
+        {
+          name: 'mutationDeleteRecipe',
+        },
+      );
 
       // define a query that we'll be caching
       const apiCalls = [];
       const queryGetRecipes = withRemoteStateQueryCaching(
-        async ({ searchFor }: { searchFor: string }): Promise<HasMetadata<Recipe>[]> => {
+        async ({
+          searchFor,
+        }: {
+          searchFor: string;
+        }): Promise<HasMetadata<Recipe>[]> => {
           apiCalls.push(searchFor);
-          return [{ uuid: uuid(), title: '__TITLE__', description: '__DESCRIPTION__', ingredients: [], steps: [] }];
+          return [
+            {
+              uuid: uuid(),
+              title: '__TITLE__',
+              description: '__DESCRIPTION__',
+              ingredients: [],
+              steps: [],
+            },
+          ];
         },
         {
           name: 'queryGetRecipes',
@@ -154,7 +205,9 @@ describe('createRemoteStateCachingContext', () => {
         invalidatedBy: {
           mutation: mutationAddRecipe,
           affects: ({ mutationInput }) => ({
-            inputs: mutationInput[0].recipe.title.split(' ').map((substring) => [{ searchFor: substring }]), // invalidate every query that was run on a word in the title of the recipe (note: this is not a good real-world example, but does the job for testing)
+            inputs: mutationInput[0].recipe.title
+              .split(' ')
+              .map((substring) => [{ searchFor: substring }]), // invalidate every query that was run on a word in the title of the recipe (note: this is not a good real-world example, but does the job for testing)
           }),
         },
       });
@@ -163,7 +216,11 @@ describe('createRemoteStateCachingContext', () => {
           mutation: mutationDeleteRecipe,
           affects: ({ cachedQueryKeys }) => ({ keys: cachedQueryKeys }), // update _all_ keys, since we dont know which ones will have included this recipe
           update: ({ from: { cachedQueryOutput }, with: { mutationInput } }) =>
-            cachedQueryOutput.then((recipes) => recipes.filter((recipe) => recipe.uuid !== mutationInput[0].recipeUuid)),
+            cachedQueryOutput.then((recipes) =>
+              recipes.filter(
+                (recipe) => recipe.uuid !== mutationInput[0].recipeUuid,
+              ),
+            ),
         },
       });
 
@@ -184,7 +241,8 @@ describe('createRemoteStateCachingContext', () => {
       await mutationAddRecipe.execute({
         recipe: {
           title: 'perfect, jalapeno t-bone steak',
-          description: 'a juicy, perfectly cooked, spicy, jalapeno t-bone steak',
+          description:
+            'a juicy, perfectly cooked, spicy, jalapeno t-bone steak',
           ingredients: [],
           steps: [],
         },
@@ -196,7 +254,7 @@ describe('createRemoteStateCachingContext', () => {
       expect(apiCalls.length).toEqual(3); // and should have called the api after cache invalidation
 
       // execute mutation to delete a recipe we've previously found for smoothie
-      await mutationDeleteRecipe.execute({ recipeUuid: result2[0].uuid });
+      await mutationDeleteRecipe.execute({ recipeUuid: result2[0]!.uuid });
 
       // prove that we updated the cached value for that request
       const result6 = await queryGetRecipes.execute({ searchFor: 'smoothie' });
@@ -206,29 +264,52 @@ describe('createRemoteStateCachingContext', () => {
     });
     it('should be possible to invalidate and update a query cache from mutation, when cache is pulled from input at runtime', async () => {
       // start the context
-      const { withRemoteStateQueryCaching, withRemoteStateMutationRegistration } = createRemoteStateCachingContext({
+      const {
+        withRemoteStateQueryCaching,
+        withRemoteStateMutationRegistration,
+      } = createRemoteStateCachingContext({
         cache: ({ fromInput }) => fromInput[1].cache,
       });
 
       // define a mutation which we'll have as a trigger for cache invalidation
       const mutationAddRecipe = withRemoteStateMutationRegistration(
-        async ({ recipe }: { recipe: Recipe }, _: { cache: RemoteStateCache }) => recipe,
+        async (
+          { recipe }: { recipe: Recipe },
+          _: { cache: RemoteStateCache },
+        ) => recipe,
         {
           name: 'mutationAddRecipe',
         },
       );
 
       // define a mutation which we'll have as a trigger for cache update
-      const mutationDeleteRecipe = withRemoteStateMutationRegistration(async (_: { recipeUuid: string }, __: { cache: RemoteStateCache }) => {}, {
-        name: 'mutationDeleteRecipe',
-      });
+      const mutationDeleteRecipe = withRemoteStateMutationRegistration(
+        async (
+          _: { recipeUuid: string },
+          __: { cache: RemoteStateCache },
+        ) => {},
+        {
+          name: 'mutationDeleteRecipe',
+        },
+      );
 
       // define a query that we'll be caching
       const apiCalls = [];
       const queryGetRecipes = withRemoteStateQueryCaching(
-        async ({ searchFor }: { searchFor: string }, _: { cache: RemoteStateCache }): Promise<HasMetadata<Recipe>[]> => {
+        async (
+          { searchFor }: { searchFor: string },
+          _: { cache: RemoteStateCache },
+        ): Promise<HasMetadata<Recipe>[]> => {
           apiCalls.push(searchFor);
-          return [{ uuid: uuid(), title: '__TITLE__', description: '__DESCRIPTION__', ingredients: [], steps: [] }];
+          return [
+            {
+              uuid: uuid(),
+              title: '__TITLE__',
+              description: '__DESCRIPTION__',
+              ingredients: [],
+              steps: [],
+            },
+          ];
         },
         {
           name: 'queryGetRecipes',
@@ -240,7 +321,12 @@ describe('createRemoteStateCachingContext', () => {
         invalidatedBy: {
           mutation: mutationAddRecipe,
           affects: ({ mutationInput }) => ({
-            inputs: mutationInput[0].recipe.title.split(' ').map((substring) => [{ searchFor: substring }, { cache: mutationInput[1].cache }]), // invalidate every query that was run on a word in the title of the recipe (note: this is not a good real-world example, but does the job for testing)
+            inputs: mutationInput[0].recipe.title
+              .split(' ')
+              .map((substring) => [
+                { searchFor: substring },
+                { cache: mutationInput[1].cache },
+              ]), // invalidate every query that was run on a word in the title of the recipe (note: this is not a good real-world example, but does the job for testing)
           }),
         },
       });
@@ -249,7 +335,11 @@ describe('createRemoteStateCachingContext', () => {
           mutation: mutationDeleteRecipe,
           affects: ({ cachedQueryKeys }) => ({ keys: cachedQueryKeys }), // update _all_ keys, since we dont know which ones will have included this recipe
           update: ({ from: { cachedQueryOutput }, with: { mutationInput } }) =>
-            cachedQueryOutput.then((recipes) => recipes.filter((recipe) => recipe.uuid !== mutationInput[0].recipeUuid)),
+            cachedQueryOutput.then((recipes) =>
+              recipes.filter(
+                (recipe) => recipe.uuid !== mutationInput[0].recipeUuid,
+              ),
+            ),
         },
       });
 
@@ -257,10 +347,22 @@ describe('createRemoteStateCachingContext', () => {
       const cache = createCache();
 
       // make a few requests
-      const result1 = await queryGetRecipes.execute({ searchFor: 'steak' }, { cache });
-      const result2 = await queryGetRecipes.execute({ searchFor: 'smoothie' }, { cache });
-      const result3 = await queryGetRecipes.execute({ searchFor: 'steak' }, { cache });
-      const result4 = await queryGetRecipes.execute({ searchFor: 'smoothie' }, { cache });
+      const result1 = await queryGetRecipes.execute(
+        { searchFor: 'steak' },
+        { cache },
+      );
+      const result2 = await queryGetRecipes.execute(
+        { searchFor: 'smoothie' },
+        { cache },
+      );
+      const result3 = await queryGetRecipes.execute(
+        { searchFor: 'steak' },
+        { cache },
+      );
+      const result4 = await queryGetRecipes.execute(
+        { searchFor: 'smoothie' },
+        { cache },
+      );
 
       // prove that subsequent duplicate requests returned the same result
       expect(result3).toEqual(result1);
@@ -274,7 +376,8 @@ describe('createRemoteStateCachingContext', () => {
         {
           recipe: {
             title: 'perfect, jalapeno t-bone steak',
-            description: 'a juicy, perfectly cooked, spicy, jalapeno t-bone steak',
+            description:
+              'a juicy, perfectly cooked, spicy, jalapeno t-bone steak',
             ingredients: [],
             steps: [],
           },
@@ -283,22 +386,34 @@ describe('createRemoteStateCachingContext', () => {
       );
 
       // prove that we invalidated the request
-      const result5 = await queryGetRecipes.execute({ searchFor: 'steak' }, { cache });
+      const result5 = await queryGetRecipes.execute(
+        { searchFor: 'steak' },
+        { cache },
+      );
       expect(result5).not.toEqual(result1); // should have gotten a different result after cache invalidation
       expect(apiCalls.length).toEqual(3); // and should have called the api after cache invalidation
 
       // execute mutation to delete a recipe we've previously found for smoothie
-      await mutationDeleteRecipe.execute({ recipeUuid: result2[0].uuid }, { cache });
+      await mutationDeleteRecipe.execute(
+        { recipeUuid: result2[0]!.uuid },
+        { cache },
+      );
 
       // prove that we updated the cached value for that request
-      const result6 = await queryGetRecipes.execute({ searchFor: 'smoothie' }, { cache });
+      const result6 = await queryGetRecipes.execute(
+        { searchFor: 'smoothie' },
+        { cache },
+      );
       expect(result2.length).toEqual(1);
       expect(result6.length).toEqual(0); // should no longer have any results, since our updatedBy trigger should have removed the recipe by uuid
       expect(apiCalls.length).toEqual(3); // should not have had another api call, since we updated the cache, not invalidated it
     });
     it('should still trigger invalidations and updates if the mutation threw an error', async () => {
       // start the context
-      const { withRemoteStateQueryCaching, withRemoteStateMutationRegistration } = createRemoteStateCachingContext({ cache: createCache() });
+      const {
+        withRemoteStateQueryCaching,
+        withRemoteStateMutationRegistration,
+      } = createRemoteStateCachingContext({ cache: createCache() });
 
       // define a mutation which we'll have as a trigger for cache invalidation
       const mutationAddRecipe = withRemoteStateMutationRegistration(
@@ -321,9 +436,21 @@ describe('createRemoteStateCachingContext', () => {
       // define a query that we'll be caching
       const apiCalls = [];
       const queryGetRecipes = withRemoteStateQueryCaching(
-        async ({ searchFor }: { searchFor: string }): Promise<HasMetadata<Recipe>[]> => {
+        async ({
+          searchFor,
+        }: {
+          searchFor: string;
+        }): Promise<HasMetadata<Recipe>[]> => {
           apiCalls.push(searchFor);
-          return [{ uuid: uuid(), title: '__TITLE__', description: '__DESCRIPTION__', ingredients: [], steps: [] }];
+          return [
+            {
+              uuid: uuid(),
+              title: '__TITLE__',
+              description: '__DESCRIPTION__',
+              ingredients: [],
+              steps: [],
+            },
+          ];
         },
         {
           name: 'queryGetRecipes',
@@ -335,7 +462,9 @@ describe('createRemoteStateCachingContext', () => {
         invalidatedBy: {
           mutation: mutationAddRecipe,
           affects: ({ mutationInput }) => ({
-            inputs: mutationInput[0].recipe.title.split(' ').map((substring) => [{ searchFor: substring }]), // invalidate every query that was run on a word in the title of the recipe (note: this is not a good real-world example, but does the job for testing)
+            inputs: mutationInput[0].recipe.title
+              .split(' ')
+              .map((substring) => [{ searchFor: substring }]), // invalidate every query that was run on a word in the title of the recipe (note: this is not a good real-world example, but does the job for testing)
           }),
         },
       });
@@ -344,7 +473,11 @@ describe('createRemoteStateCachingContext', () => {
           mutation: mutationDeleteRecipe,
           affects: ({ cachedQueryKeys }) => ({ keys: cachedQueryKeys }), // update _all_ keys, since we dont know which ones will have included this recipe
           update: ({ from: { cachedQueryOutput }, with: { mutationInput } }) =>
-            cachedQueryOutput.then((recipes) => recipes.filter((recipe) => recipe.uuid !== mutationInput[0].recipeUuid)),
+            cachedQueryOutput.then((recipes) =>
+              recipes.filter(
+                (recipe) => recipe.uuid !== mutationInput[0].recipeUuid,
+              ),
+            ),
         },
       });
 
@@ -366,7 +499,8 @@ describe('createRemoteStateCachingContext', () => {
         await mutationAddRecipe.execute({
           recipe: {
             title: 'perfect, jalapeno t-bone steak',
-            description: 'a juicy, perfectly cooked, spicy, jalapeno t-bone steak',
+            description:
+              'a juicy, perfectly cooked, spicy, jalapeno t-bone steak',
             ingredients: [],
             steps: [],
           },
@@ -384,7 +518,7 @@ describe('createRemoteStateCachingContext', () => {
 
       // execute mutation to delete a recipe we've previously found for smoothie
       try {
-        await mutationDeleteRecipe.execute({ recipeUuid: result2[0].uuid });
+        await mutationDeleteRecipe.execute({ recipeUuid: result2[0]!.uuid });
         throw new Error('should not reach here');
       } catch (error) {
         if (!(error instanceof Error)) throw error;
@@ -413,30 +547,57 @@ describe('createRemoteStateCachingContext', () => {
      *   - a new context is built for each operation
      *   - each context just happens to reference the same cache (e.g., one persisted on disk)
      */
-    const getNewExecutionContextOperations = ({ apiCalls }: { apiCalls: any[] }) => {
+    const getNewExecutionContextOperations = ({
+      apiCalls,
+    }: {
+      apiCalls: any[];
+    }) => {
       // start the context
-      const { withRemoteStateQueryCaching, withRemoteStateMutationRegistration } = createRemoteStateCachingContext({
+      const {
+        withRemoteStateQueryCaching,
+        withRemoteStateMutationRegistration,
+      } = createRemoteStateCachingContext({
         cache: ({ fromInput }) => fromInput[1].cache,
       });
 
       // define a mutation which we'll have as a trigger for cache invalidation
       const mutationAddRecipe = withRemoteStateMutationRegistration(
-        async ({ recipe }: { recipe: Recipe }, _: { cache: SimpleCache<any> }) => recipe,
+        async (
+          { recipe }: { recipe: Recipe },
+          _: { cache: SimpleCache<any> },
+        ) => recipe,
         {
           name: 'mutationAddRecipe',
         },
       );
 
       // define a mutation which we'll have as a trigger for cache update
-      const mutationDeleteRecipe = withRemoteStateMutationRegistration(async (_: { recipeUuid: string }, __: { cache: SimpleCache<any> }) => {}, {
-        name: 'mutationDeleteRecipe',
-      });
+      const mutationDeleteRecipe = withRemoteStateMutationRegistration(
+        async (
+          _: { recipeUuid: string },
+          __: { cache: SimpleCache<any> },
+        ) => {},
+        {
+          name: 'mutationDeleteRecipe',
+        },
+      );
 
       // define a query that we'll be caching
       const queryGetRecipes = withRemoteStateQueryCaching(
-        async ({ searchFor }: { searchFor: string }, _: { cache: SimpleCache<any> }): Promise<HasMetadata<Recipe>[]> => {
+        async (
+          { searchFor }: { searchFor: string },
+          _: { cache: SimpleCache<any> },
+        ): Promise<HasMetadata<Recipe>[]> => {
           apiCalls.push(searchFor);
-          return [{ uuid: uuid(), title: '__TITLE__', description: '__DESCRIPTION__', ingredients: [], steps: [] }];
+          return [
+            {
+              uuid: uuid(),
+              title: '__TITLE__',
+              description: '__DESCRIPTION__',
+              ingredients: [],
+              steps: [],
+            },
+          ];
         },
         {
           name: 'queryGetRecipes',
@@ -448,7 +609,12 @@ describe('createRemoteStateCachingContext', () => {
         invalidatedBy: {
           mutation: mutationAddRecipe,
           affects: ({ mutationInput }) => ({
-            inputs: mutationInput[0].recipe.title.split(' ').map((substring) => [{ searchFor: substring }, { cache: mutationInput[1].cache }]), // invalidate every query that was run on a word in the title of the recipe (note: this is not a good real-world example, but does the job for testing)
+            inputs: mutationInput[0].recipe.title
+              .split(' ')
+              .map((substring) => [
+                { searchFor: substring },
+                { cache: mutationInput[1].cache },
+              ]), // invalidate every query that was run on a word in the title of the recipe (note: this is not a good real-world example, but does the job for testing)
           }),
         },
       });
@@ -457,11 +623,20 @@ describe('createRemoteStateCachingContext', () => {
           mutation: mutationDeleteRecipe,
           affects: ({ cachedQueryKeys }) => ({ keys: cachedQueryKeys }), // update _all_ keys, since we dont know which ones will have included this recipe
           update: ({ from: { cachedQueryOutput }, with: { mutationInput } }) =>
-            cachedQueryOutput.then((recipes) => recipes.filter((recipe) => recipe.uuid !== mutationInput[0].recipeUuid)),
+            cachedQueryOutput.then((recipes) =>
+              recipes.filter(
+                (recipe) => recipe.uuid !== mutationInput[0].recipeUuid,
+              ),
+            ),
         },
       });
 
-      return { queryGetRecipes, mutationAddRecipe, mutationDeleteRecipe, apiCalls };
+      return {
+        queryGetRecipes,
+        mutationAddRecipe,
+        mutationDeleteRecipe,
+        apiCalls,
+      };
     };
 
     it('should be possible to invalidate and update a query cache from mutation, when multiple contexts are used, simulating separate processes', async () => {
@@ -472,14 +647,28 @@ describe('createRemoteStateCachingContext', () => {
       const cache = createCache();
 
       // run a couple queries against one context
-      const { queryGetRecipes: queryGetRecipesA } = getNewExecutionContextOperations({ apiCalls });
-      const result1 = await queryGetRecipesA.execute({ searchFor: 'steak' }, { cache });
-      const result2 = await queryGetRecipesA.execute({ searchFor: 'smoothie' }, { cache });
+      const { queryGetRecipes: queryGetRecipesA } =
+        getNewExecutionContextOperations({ apiCalls });
+      const result1 = await queryGetRecipesA.execute(
+        { searchFor: 'steak' },
+        { cache },
+      );
+      const result2 = await queryGetRecipesA.execute(
+        { searchFor: 'smoothie' },
+        { cache },
+      );
 
       // run a couple queries against another context
-      const { queryGetRecipes: queryGetRecipesB } = getNewExecutionContextOperations({ apiCalls });
-      const result3 = await queryGetRecipesB.execute({ searchFor: 'steak' }, { cache });
-      const result4 = await queryGetRecipesB.execute({ searchFor: 'smoothie' }, { cache });
+      const { queryGetRecipes: queryGetRecipesB } =
+        getNewExecutionContextOperations({ apiCalls });
+      const result3 = await queryGetRecipesB.execute(
+        { searchFor: 'steak' },
+        { cache },
+      );
+      const result4 = await queryGetRecipesB.execute(
+        { searchFor: 'smoothie' },
+        { cache },
+      );
 
       // prove that subsequent duplicate requests returned the same result
       expect(result3).toEqual(result1);
@@ -489,12 +678,15 @@ describe('createRemoteStateCachingContext', () => {
       expect(apiCalls.length).toEqual(2);
 
       // execute mutation to add a recipe which includes the word 'steak' in the title, in a different context
-      const { mutationAddRecipe } = getNewExecutionContextOperations({ apiCalls });
+      const { mutationAddRecipe } = getNewExecutionContextOperations({
+        apiCalls,
+      });
       await mutationAddRecipe.execute(
         {
           recipe: {
             title: 'perfect, jalapeno t-bone steak',
-            description: 'a juicy, perfectly cooked, spicy, jalapeno t-bone steak',
+            description:
+              'a juicy, perfectly cooked, spicy, jalapeno t-bone steak',
             ingredients: [],
             steps: [],
           },
@@ -503,16 +695,27 @@ describe('createRemoteStateCachingContext', () => {
       );
 
       // prove that we invalidated the request
-      const result5 = await queryGetRecipesA.execute({ searchFor: 'steak' }, { cache });
+      const result5 = await queryGetRecipesA.execute(
+        { searchFor: 'steak' },
+        { cache },
+      );
       expect(result5).not.toEqual(result1); // should have gotten a different result after cache invalidation
       expect(apiCalls.length).toEqual(3); // and should have called the api after cache invalidation
 
       // execute mutation to delete a recipe we've previously found for smoothie, in another different context
-      const { mutationDeleteRecipe } = getNewExecutionContextOperations({ apiCalls });
-      await mutationDeleteRecipe.execute({ recipeUuid: result2[0].uuid }, { cache });
+      const { mutationDeleteRecipe } = getNewExecutionContextOperations({
+        apiCalls,
+      });
+      await mutationDeleteRecipe.execute(
+        { recipeUuid: result2[0].uuid },
+        { cache },
+      );
 
       // prove that we updated the cached value for that request
-      const result6 = await queryGetRecipesA.execute({ searchFor: 'smoothie' }, { cache });
+      const result6 = await queryGetRecipesA.execute(
+        { searchFor: 'smoothie' },
+        { cache },
+      );
       expect(result2.length).toEqual(1);
       expect(result6.length).toEqual(0); // should no longer have any results, since our updatedBy trigger should have removed the recipe by uuid
       expect(apiCalls.length).toEqual(3); // should not have had another api call, since we updated the cache, not invalidated it
@@ -536,7 +739,15 @@ describe('createRemoteStateCachingContext', () => {
       const queryGetRecipes = withRemoteStateQueryCaching(
         async ({ searchFor }: { searchFor: string }): Promise<Recipe[]> => {
           apiCalls.push(searchFor);
-          return [{ uuid: uuid(), title: '__TITLE__', description: '__DESCRIPTION__', ingredients: [], steps: [] }];
+          return [
+            {
+              uuid: uuid(),
+              title: '__TITLE__',
+              description: '__DESCRIPTION__',
+              ingredients: [],
+              steps: [],
+            },
+          ];
         },
         {
           name: 'queryGetRecipes',
@@ -566,10 +777,20 @@ describe('createRemoteStateCachingContext', () => {
 
       // update a request
       await queryGetRecipes.update({
-        forKey: [queryGetRecipes.name, defaultKeySerializationMethod({ forInput: [{ searchFor: 'smoothie' }] })].join('.'), // update by key, instead of input
+        forKey: [
+          queryGetRecipes.name,
+          defaultKeySerializationMethod({
+            forInput: [{ searchFor: 'smoothie' }],
+          }),
+        ].join('.'), // update by key, instead of input
         toValue: async ({ fromCachedOutput }) => [
           ...((await fromCachedOutput) ?? []),
-          { title: 'new smoothie', description: 'great smothie', ingredients: [], steps: [] }, // add a new recipe to it
+          {
+            title: 'new smoothie',
+            description: 'great smothie',
+            ingredients: [],
+            steps: [],
+          }, // add a new recipe to it
         ],
       });
 
