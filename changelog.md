@@ -1,5 +1,13 @@
 # Changelog
 
+### [1.3.7](https://www.github.com/ehmpathy/with-remote-state-caching/compare/v1.3.6...v1.3.7) (2023-08-01)
+
+
+### Bug Fixes
+
+* **names:** actually use the name override ([025301e](https://www.github.com/ehmpathy/with-remote-state-caching/commit/025301e14f12e62df7d2714c5e812c76bbb45020))
+* **types:** ensure mutationOutput is the awaited result ([00ef826](https://www.github.com/ehmpathy/with-remote-state-caching/commit/00ef826faedfaa52a6da12accef3ec42ab0c3e94))
+
 ### [1.3.6](https://www.github.com/ehmpathy/with-remote-state-caching/compare/v1.3.5...v1.3.6) (2023-08-01)
 
 
