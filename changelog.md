@@ -1,5 +1,12 @@
 # Changelog
 
+### [1.3.6](https://www.github.com/ehmpathy/with-remote-state-caching/compare/v1.3.5...v1.3.6) (2023-08-01)
+
+
+### Bug Fixes
+
+* **names:** enable overriding given name for cached query ([f397926](https://www.github.com/ehmpathy/with-remote-state-caching/commit/f397926f213b3898b809ecc0a67c371f0632ca68))
+
 ### [1.3.5](https://www.github.com/ehmpathy/with-remote-state-caching/compare/v1.3.4...v1.3.5) (2022-12-29)
 
 
