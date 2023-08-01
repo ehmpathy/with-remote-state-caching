@@ -1,3 +1,8 @@
+import { RemoteStateCache } from './RemoteStateCache';
+import { RemoteStateCacheContext, RemoteStateCacheContextQueryRegistration } from './RemoteStateCacheContext';
+import { MutationExecutionStatus, RemoteStateQueryInvalidationTrigger, RemoteStateQueryUpdateTrigger } from './RemoteStateQueryCachingOptions';
+import { defaultKeySerializationMethod, defaultValueDeserializationMethod, defaultValueSerializationMethod } from './defaults';
+import { BadRequestError } from './errors/BadRequestError';
 import { isAFunction, PickOne } from 'type-fns';
 import {
   WithSimpleCachingOptions,
@@ -7,11 +12,6 @@ import {
   WithSimpleCachingCacheOption,
   WithSimpleCachingAsyncOptions,
 } from 'with-simple-caching';
-import { RemoteStateCacheContext, RemoteStateCacheContextQueryRegistration } from './RemoteStateCacheContext';
-import { MutationExecutionStatus, RemoteStateQueryInvalidationTrigger, RemoteStateQueryUpdateTrigger } from './RemoteStateQueryCachingOptions';
-import { BadRequestError } from './errors/BadRequestError';
-import { RemoteStateCache } from './RemoteStateCache';
-import { defaultKeySerializationMethod, defaultValueDeserializationMethod, defaultValueSerializationMethod } from './defaults';
 
 interface WithRemoteStateCachingOptions {
   /**
@@ -58,14 +58,9 @@ export const extractNameFromRegistrationInputs = ({
 }) => {
   // define the name
   const nameFromFunctionReference = logic.name;
-  const nameFromExplicitOptions = !options.name ? null : typeof options.name === 'string' ? options.name : options.name.override;
-  const nameFromExplicitOptionsIsOverride = options.name && typeof options.name !== 'string' && options.name.override;
-  if (
-    nameFromExplicitOptions &&
-    nameFromFunctionReference &&
-    nameFromExplicitOptionsIsOverride &&
-    nameFromExplicitOptions !== nameFromFunctionReference
-  )
+  const nameFromExplicitOptions = typeof options.name === 'string' ? options.name : null;
+  const nameFromExplicitOptionsOverride = options.name && typeof options.name !== 'string' ? options.name.override : null;
+  if (nameFromExplicitOptions && nameFromFunctionReference && nameFromExplicitOptions !== nameFromFunctionReference)
     throw new BadRequestError(
       `a ${operation.toLowerCase()} was attempted to be registered to remote-state caching with a name explicitly defined which differed from the name property of the wrapped logic function reference. this is ambiguous, so we do not allow this.
 
@@ -75,7 +70,7 @@ if you are sure you want to override the given name of the function, set 'name: 
         nameFromExplicitOptions,
       },
     );
-  const name = nameFromFunctionReference || nameFromExplicitOptions; // fallback to name from explicit options if logic reference does not have a name assigned
+  const name = nameFromExplicitOptionsOverride || nameFromFunctionReference || nameFromExplicitOptions; // fallback to name from explicit options if logic reference does not have a name assigned
   if (!name)
     throw new BadRequestError(
       `name was not defined on ${operation.toLowerCase()} registration. can not register ${operation.toLowerCase()} to remote state context`,
@@ -151,7 +146,7 @@ export const createRemoteStateCachingContext = <
   /**
    * the type of the cache used for operations in this context
    */
-  C extends RemoteStateCache
+  C extends RemoteStateCache,
 >({
   cache,
   ...defaultOptions
@@ -227,7 +222,7 @@ export const createRemoteStateCachingContext = <
 
     // define a key serialization method which prefixes the key with the queries name (to give each query it's own namespace), edtending the user inputted serialization method
     const keySerializationMethodFromOptions =
-      options.serialize?.key ?? ((defaultOptions.serialize?.key as any) as KeySerializationMethod<Parameters<L>>) ?? defaultKeySerializationMethod;
+      options.serialize?.key ?? (defaultOptions.serialize?.key as any as KeySerializationMethod<Parameters<L>>) ?? defaultKeySerializationMethod;
     const keySerializationMethodWithNamespace: KeySerializationMethod<Parameters<L>> = (...args) =>
       [name, keySerializationMethodFromOptions(...args)].join('.');
 
