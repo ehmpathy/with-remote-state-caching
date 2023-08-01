@@ -1,5 +1,12 @@
 # Changelog
 
+### [1.3.8](https://www.github.com/ehmpathy/with-remote-state-caching/compare/v1.3.7...v1.3.8) (2023-08-01)
+
+
+### Bug Fixes
+
+* **types:** ensure mutationOutput is the awaited result everywhere ([173e1eb](https://www.github.com/ehmpathy/with-remote-state-caching/commit/173e1eb4af88f92b1eced908c2b33f1924be8830))
+
 ### [1.3.7](https://www.github.com/ehmpathy/with-remote-state-caching/compare/v1.3.6...v1.3.7) (2023-08-01)
 
 
