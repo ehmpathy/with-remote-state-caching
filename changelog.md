@@ -1,5 +1,13 @@
 # Changelog
 
+### [1.3.8](https://www.github.com/ehmpathy/with-remote-state-caching/compare/v1.3.7...v1.3.8) (2024-04-27)
+
+
+### Bug Fixes
+
+* **invalidation:** ensure cache invalidation triggered on mutation input as well ([ac18ac6](https://www.github.com/ehmpathy/with-remote-state-caching/commit/ac18ac6c630825e11f894ccdca57a8c913ee4954))
+* **types:** ensure mutationOutput is the awaited result everywhere ([173e1eb](https://www.github.com/ehmpathy/with-remote-state-caching/commit/173e1eb4af88f92b1eced908c2b33f1924be8830))
+
 ### [1.3.7](https://www.github.com/ehmpathy/with-remote-state-caching/compare/v1.3.6...v1.3.7) (2023-08-01)
 
 
