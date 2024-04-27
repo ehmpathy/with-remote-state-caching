@@ -272,6 +272,24 @@ export const createRemoteStateCachingContext = <
   };
 
   /**
+   * define a method which is able to kick off all registered query invalidations on invocation of a mutation
+   *
+   * note
+   * - it's important to invalidate _before_ a mutation begins, because if the runtime is terminated part way through the mutation, onOutput will never be called
+   */
+  const onMutationInput = async <LI extends any, LO extends any, M extends (...args: any) => any>({
+    mutationName,
+    mutationInput,
+    mutationOutput,
+    mutationStatus,
+  }: {
+    mutationName: string;
+    mutationInput: Parameters<M>;
+    mutationOutput: null;
+    mutationStatus: MutationExecutionStatus;
+  }) => onMutationOutput({ mutationName, mutationInput, mutationOutput, mutationStatus }); // note: for now, its just an alias for readability. we may find additional requirements in the future
+
+  /**
    * define a method which is able to kick off all registered query invalidations and query updates, on the execution of a mutation
    */
   const onMutationOutput = async <LI extends any, LO extends any, M extends (...args: any) => any>({
@@ -378,10 +396,19 @@ export const createRemoteStateCachingContext = <
     // define the execute function, with triggers onMutationOutput
     const execute: L = (async (...args: Parameters<L>): Promise<ReturnType<L>> => {
       try {
+        // invalidate accessible cache entries before the mutation runs, in case the runtime is ungracefully terminated during logic
+        await onMutationInput({ mutationName, mutationInput: args, mutationOutput: null, mutationStatus: MutationExecutionStatus.RESOLVED });
+
+        // execute the logic
         const result = (await logic(...args)) as ReturnType<L>;
+
+        // invalidate accessible cache entries now that the mutation has completed with success
         await onMutationOutput({ mutationName, mutationInput: args, mutationOutput: result, mutationStatus: MutationExecutionStatus.RESOLVED });
+
+        // return the original result
         return result;
       } catch (error) {
+        // invalidate accessible cache entries now that the mutation has completed with rejection
         await onMutationOutput({ mutationName, mutationInput: args, mutationOutput: null, mutationStatus: MutationExecutionStatus.REJECTED });
         throw error;
       }
