@@ -1,9 +1,14 @@
-import { KeySerializationMethod, WithSimpleCachingAsyncOptions } from 'with-simple-caching';
-
 import shajs from 'sha.js';
+import {
+  KeySerializationMethod,
+  WithSimpleCachingAsyncOptions,
+} from 'with-simple-caching';
+
 import { RemoteStateCache } from '.';
 
-export const defaultKeySerializationMethod: KeySerializationMethod<any> = ({ forInput }) =>
+export const defaultKeySerializationMethod: KeySerializationMethod<any> = ({
+  forInput,
+}) =>
   [
     // display a preview of the request
     JSON.stringify(forInput)
@@ -18,8 +23,10 @@ export const defaultKeySerializationMethod: KeySerializationMethod<any> = ({ for
     shajs('sha256').update(JSON.stringify(forInput)).digest('hex'),
   ].join('.');
 
-export const defaultValueSerializationMethod: Required<WithSimpleCachingAsyncOptions<any, RemoteStateCache>>['serialize']['value'] = (output) =>
-  JSON.stringify(output);
+export const defaultValueSerializationMethod: Required<
+  WithSimpleCachingAsyncOptions<any, RemoteStateCache>
+>['serialize']['value'] = (output) => JSON.stringify(output);
 
-export const defaultValueDeserializationMethod: Required<WithSimpleCachingAsyncOptions<any, RemoteStateCache>>['deserialize']['value'] = (cached) =>
-  JSON.parse(cached);
+export const defaultValueDeserializationMethod: Required<
+  WithSimpleCachingAsyncOptions<any, RemoteStateCache>
+>['deserialize']['value'] = (cached) => JSON.parse(cached);
