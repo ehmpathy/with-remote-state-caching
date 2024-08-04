@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.9](https://github.com/ehmpathy/with-remote-state-caching/compare/v1.3.8...v1.3.9) (2024-08-04)
+
+
+### Bug Fixes
+
+* **deps:** bump with-simple-caching version ([#15](https://github.com/ehmpathy/with-remote-state-caching/issues/15)) ([866c57d](https://github.com/ehmpathy/with-remote-state-caching/commit/866c57d0a50fa38513af5b301080fc2799b03c7e))
+* **practs:** bump practs to latest best ([34c7515](https://github.com/ehmpathy/with-remote-state-caching/commit/34c7515ae6122196885b79ab425cbc25f73a074c))
+
 ### [1.3.8](https://www.github.com/ehmpathy/with-remote-state-caching/compare/v1.3.7...v1.3.8) (2024-04-27)
 
 
