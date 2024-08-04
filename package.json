@@ -68,6 +68,6 @@
     "@types/sha.js": "^2.4.0",
     "sha.js": "^2.4.11",
     "type-fns": "^0.6.0",
-    "with-simple-caching": "^0.11.1"
+    "with-simple-caching": "^0.12.0"
   }
 }
